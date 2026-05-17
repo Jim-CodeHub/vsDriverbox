@@ -81,7 +81,7 @@ def create_camera_instance():
         cam_buffer_count=config.get('cam_buffer_count', 10),
         data_recv_addr=config.get('data_recv_addr', "127.0.0.1"),
         data_recv_port=config.get('data_recv_port', 9120),
-        capture_img_len=config.get('capture_img_len', 1000.0),
+        capture_img_len=config.get('capture_img_len', 100.0),
         capture_save_dir=config.get('capture_save_dir', r"D:\vsDriverbox\cap"),
         rip_send_dir=config.get('rip_send_dir', r"D:\vsDriverbox\rip"),
         dpi=config.get('dpi', 300),
@@ -113,7 +113,7 @@ def start_system(is_capture=False):
         try:
             camera_instance = create_camera_instance()
         except Exception as e:
-            print("xxx", e)
+            logger.error(f"Failed to create camera instance: {e}")
 
         # 2. Instantiate Printer
         printer_instance = Printer(

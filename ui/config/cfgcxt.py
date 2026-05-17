@@ -65,7 +65,6 @@ class ConfigContext(object):
                 ctypes.windll.kernel32.SetFileAttributesW(self.config_path, FILE_ATTRIBUTE_HIDDEN)
             return True
         except Exception as e:
-            print("Failed to save configuration", e) # 这里应该加入log
             return False
 
     def notify_all(self):

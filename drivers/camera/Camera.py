@@ -29,7 +29,7 @@ class Camera(object):
                  cam_buffer_count=10,
                  data_recv_addr="127.0.0.1",
                  data_recv_port=9120,
-                 capture_img_len=1000.0,
+                 capture_img_len=100.0,
                  capture_save_dir=r"D:\vsDriverbox\cap",
                  rip_send_dir=r"D:\vsDriverbox\rip",
                  dpi=300,
@@ -223,7 +223,6 @@ class Camera(object):
         try:
             self.__light.set_switch(True)
         except Exception as e:
-            print("eeer" , e)
             self._log(f"Note : The light can not be switched on: {str(e)}")
 
         try:
@@ -266,7 +265,6 @@ class Camera(object):
         :raises: None
         :note:: Records error and triggers fatal error handling if reason is provided
         """
-        print("stop trig")
         self.running = False
         success = True
         
@@ -751,7 +749,6 @@ class Camera(object):
                 _Info2 = self.__StTQ_inf.get(block=True, timeout=1.0)
                 if _Info2 is None: break
                 infoList.append(_Info2)
-                print("get info")
             except queue.Empty:
                 pass # shall be pass here
             except Exception as e:
@@ -770,7 +767,6 @@ class Camera(object):
                 else:
                     fresh, y_step = self.__stitch.stitch_from_ram(_image=image, Step=_Info["Step"], Direction=_Info["Direction"], MotionStartPoint=_Info["MotionStartPoint"])
                     self.__DtTQueue.put((fresh.copy(), y_step))
-                print("aster stitch adn put")
                 self.__StTQ_inf.task_done()
                 self.__StTQ_img.task_done()
             except queue.Empty:
@@ -781,7 +777,6 @@ class Camera(object):
                 break
 
     def __Mb_Thread(self):
-        print("i am in")
         while self.running:
             try:
                 _Sig_ = self.__MbTQueue.get(block=True, timeout=1.0)
@@ -792,7 +787,6 @@ class Camera(object):
                 self.__modbus.get_info()
 
                 self.__StTQ_inf.put({"Step":self.__modbus.y_axis_pos(), "Direction":self.__modbus.is_right_to_left(), "MotionStartPoint":self.__modbus.x_axis_pos()})
-                print("mb put")
                 self.__MbTQueue.task_done()
             except queue.Empty:
                 continue
@@ -806,7 +800,6 @@ class Camera(object):
             try:
                 _Data_ = self.__DtTQueue.get(block=True, timeout=1.0)
                 if _Data_ is None: break
-                print("get data")
                 _Img_, y_step = _Data_
 
                 if self.data_connected and self.data_socket:
@@ -1334,8 +1327,6 @@ class Camera(object):
                 data = ser.read(7).decode('utf-8')
                 ser.close()
 
-                print(data)
-
                 return False if data is None or not re.match(r'^\$DA\d{3}#$', data) else True, re.findall(r'\d+', data)
 
         def set_voltage(self, level: bool) -> bool:
@@ -1422,8 +1413,6 @@ class Camera(object):
                 ser.write(cmd.encode('utf-8'))
                 data = ser.read(5).decode('utf-8')
                 ser.close()
-
-                print(data)
 
                 return False if data is None or not re.match(r'^\$(WAN|WAF)#$', data) else True, re.findall(r'WA([NF])',
                                                                                                             data)

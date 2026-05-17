@@ -35,9 +35,7 @@ class Logger:
         self.logger = logging.getLogger("vsDriverbox")
         self.logger.setLevel(logging.INFO)
 
-        self._setup_handler()
         self._initialized = True
-        self.check_and_clean_logs()
 
     def _setup_handler(self):
         if not os.path.exists(self.log_dir):
@@ -110,7 +108,8 @@ class Logger:
 
         new_max_total_bytes = max_mb * 1024 * 1024
 
-        if log_dir != self.log_dir or new_max_total_bytes != self.max_total_bytes:
+        # Always setup handler if it doesn't exist yet, or if config changed
+        if not self.logger.hasHandlers() or log_dir != self.log_dir or new_max_total_bytes != self.max_total_bytes:
             self.log_dir = log_dir
             self.max_total_bytes = new_max_total_bytes
             self._setup_handler()

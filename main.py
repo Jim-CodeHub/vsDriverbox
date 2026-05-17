@@ -12,6 +12,7 @@ import os
 import time
 import threading
 import pystray
+import ctypes
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image
@@ -20,6 +21,7 @@ from ui.config.cfgcxt import config_context
 from drivers.camera.Camera import Camera
 from drivers.Printer import Printer
 from utils import logger
+from gantt_utils import generate_gantt_from_log
 
 # Global states
 is_started = False
@@ -225,16 +227,17 @@ def on_image_stitch(icon, item):
     # 1. Ask for directory
     root = tk.Tk()
     root.withdraw()
-    path = filedialog.askdirectory(title="选择拼接目录")
-    root.destroy()
+    path = filedialog.askdirectory(parent=root, title="选择拼接目录")
     
     if not path:
+        root.destroy()
         return
 
     # 2. Check for JSON file
     json_files = [f for f in os.listdir(path) if f.endswith('.json')]
     if not json_files:
-        messagebox.showwarning("路径选择错误", "所选目录中没有找到JSON配置文件")
+        messagebox.showwarning("路径选择错误", "所选目录中没有找到JSON配置文件", parent=root)
+        root.destroy()
         return
 
     # 3. Call stitch_from_json
@@ -257,14 +260,16 @@ def on_image_stitch(icon, item):
             # Save the result
             save_path = os.path.join(path, "stitched_result.tif")
             Image.fromarray(stitched_img_np).save(save_path)
-            messagebox.showinfo("拼接成功", f"图像拼接完成，已保存至：\n{save_path}")
+            messagebox.showinfo("拼接成功", f"图像拼接完成，已保存至：\n{save_path}", parent=root)
             logger.info(f"Image stitching completed and saved to {save_path}")
         else:
-            messagebox.showwarning("拼接失败", "拼接返回结果为空，请检查数据完整性")
+            messagebox.showwarning("拼接失败", "拼接返回结果为空，请检查数据完整性", parent=root)
             
     except Exception as e:
         logger.error(f"Image stitching failed: {e}")
-        messagebox.showerror("拼接失败", f"执行拼接时发生错误：\n{str(e)}")
+        messagebox.showerror("拼接失败", f"执行拼接时发生错误：\n{str(e)}", parent=root)
+    finally:
+        root.destroy()
 
 def on_config(icon, item):
     """Opens the configuration UI in a separate thread."""
@@ -277,6 +282,52 @@ def on_config(icon, item):
             logger.error(f"Failed to open config UI: {e}")
 
     threading.Thread(target=run_config, daemon=True).start()
+
+def on_generate_gantt(icon, item):
+    """Opens a file dialog to select a log file and generates a Gantt chart in a separate thread."""
+    def run_gantt():
+        try:
+            # 1. Determine default log directory
+            config = config_context.config
+            default_dir = config.get('log_dir', os.path.join(os.getcwd(), "logs"))
+            
+            # 2. Create a single hidden root for all dialogs in this session
+            root = tk.Tk()
+            root.withdraw()
+            
+            file_path = filedialog.askopenfilename(
+                parent=root,
+                title="选择日志文件生成甘特图",
+                initialdir=default_dir,
+                filetypes=[("Log files", "*.log"), ("All files", "*.*")]
+            )
+            
+            if not file_path:
+                root.destroy()
+                return
+
+            # 3. Call generation utility
+            logger.info(f"Generating Gantt PDF from: {file_path}")
+            pdf_output = generate_gantt_from_log(file_path)
+            
+            # 4. Notify user of success
+            if pdf_output:
+                logger.info(f"Gantt PDF saved successfully: {pdf_output}")
+                # Open the directory to show the file
+                os.startfile(os.path.dirname(pdf_output))
+                messagebox.showinfo("生成成功", f"甘特图已保存为 PDF：\n{pdf_output}\n\n已自动为你打开目录。", parent=root)
+            
+            root.destroy()
+            
+        except Exception as e:
+            logger.error(f"Failed to generate Gantt chart: {e}")
+            # Use a temporary root for error message if needed
+            err_root = tk.Tk()
+            err_root.withdraw()
+            messagebox.showerror("错误", f"无法生成甘特图：\n{str(e)}", parent=err_root)
+            err_root.destroy()
+
+    threading.Thread(target=run_gantt, daemon=True).start()
 
 def on_exit(icon, item):
     global is_running_process
@@ -297,6 +348,10 @@ def is_start_stop_enabled(item):
     # Disabled if capture mode is active
     return not is_cap_mode
 
+def is_tools_enabled(item):
+    # Disabled if system is started
+    return not is_started
+
 def setup_tray():
     global icon_instance
     load_icons()
@@ -306,23 +361,50 @@ def setup_tray():
         pystray.MenuItem(get_capture_text, on_capture_image, enabled=is_capture_enabled),
         pystray.MenuItem("图像拼接", on_image_stitch),
         pystray.MenuItem("参数设置", on_config),
+        pystray.MenuItem("应用工具", pystray.Menu(
+            pystray.MenuItem("生成甘特", on_generate_gantt)
+        ), enabled=is_tools_enabled),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("退出", on_exit)
     )
     
     icon_instance = pystray.Icon(
         'vsDriverbox',
-        icon=ICONS['offline'],
+        icon=ICONS['offline'], # 恢复为 offline 启动，符合原逻辑
         title='Vision Driver Box',
         menu=menu
     )
-    
+
     # Start animation thread
     threading.Thread(target=icon_animation_thread, daemon=True).start()
+    
+    # 软件启动气泡提示
+    def notify_startup():
+        time.sleep(2.0) 
+        
+        # 即使设置了 AppUserModelID，在脚本运行环境下，系统有时仍无法自动关联图标
+        # 我们在这里确保发送通知时，托盘图标处于 standby 状态
+        if not is_started:
+            old_icon = icon_instance.icon
+            icon_instance.icon = ICONS['standby'] # 强制切换到 standby
+            time.sleep(0.5) # 给 Windows 足够的系统时间来缓存这个新图标
+            icon_instance.notify("软件已成功启动并运行在后台", title="Vision Driver Box")
+            time.sleep(2.0) # 保持时间加长，确保气泡弹出期间图标资源有效
+            if not is_started:
+                icon_instance.icon = old_icon
+    
+    threading.Thread(target=notify_startup, daemon=True).start()
     
     icon_instance.run()
 
 if __name__ == '__main__':
+    # 0. Set AppUserModelID to ensure notification shows correct icon and name
+    try:
+        myappid = u'Jim.VisionDriverBox.v1' # 任意唯一标识字符串
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception:
+        pass
+
     # 1. Load configuration at startup
     config_context.load()
 

@@ -20,7 +20,7 @@ from ui.config.config import ConfigUI
 from ui.config.cfgcxt import config_context
 from drivers.camera.Camera import Camera
 from drivers.Printer import Printer
-from utils import logger
+from utils import logger, get_resource_path
 from gantt_utils import generate_gantt_from_log
 
 # Global states
@@ -30,6 +30,7 @@ is_cap_mode = False
 icon_instance = None
 camera_instance = None
 printer_instance = None
+mutex_handle = None  # Keep a reference to prevent garbage collection
 
 # Icon resources
 ICON_DIR = os.path.join('src', 'icon')
@@ -38,13 +39,15 @@ ICONS = {}
 def load_icons():
     global ICONS
     try:
+        # Use get_resource_path to ensure icons are found when bundled
+        icon_dir = get_resource_path(os.path.join('src', 'icon'))
         ICONS = {
-            'standby': Image.open(os.path.join(ICON_DIR, 'State_Standby.png')),
-            'offline': Image.open(os.path.join(ICON_DIR, 'State_Offline.png')),
-            'capMode': Image.open(os.path.join(ICON_DIR, 'State_CapMode.png')),
-            'A': Image.open(os.path.join(ICON_DIR, 'State_RunningA.png')),
-            'B': Image.open(os.path.join(ICON_DIR, 'State_RunningB.png')),
-            'C': Image.open(os.path.join(ICON_DIR, 'State_RunningC.png')),
+            'standby': Image.open(os.path.join(icon_dir, 'State_Standby.png')),
+            'offline': Image.open(os.path.join(icon_dir, 'State_Offline.png')),
+            'capMode': Image.open(os.path.join(icon_dir, 'State_CapMode.png')),
+            'A': Image.open(os.path.join(icon_dir, 'State_RunningA.png')),
+            'B': Image.open(os.path.join(icon_dir, 'State_RunningB.png')),
+            'C': Image.open(os.path.join(icon_dir, 'State_RunningC.png')),
         }
     except Exception as e:
         logger.error(f"Failed to load icons: {e}")
@@ -398,9 +401,26 @@ def setup_tray():
     icon_instance.run()
 
 if __name__ == '__main__':
+    # 0. Single instance check using Windows Mutex
+    try:
+        mutex_name = u"Global\\vsDriverBox_SingleInstance_Mutex"
+        mutex_handle = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
+        last_error = ctypes.windll.kernel32.GetLastError()
+        
+        if last_error == 183:  # ERROR_ALREADY_EXISTS
+            # Create a hidden root for the messagebox
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showwarning("程序已运行", "Vision Driver Box 已经在运行中。\n请在系统托盘查找图标。")
+            root.destroy()
+            os._exit(0)
+    except Exception as e:
+        # If mutex fails for some reason, we log it but might still try to run
+        print(f"Mutex check failed: {e}")
+
     # 0. Set AppUserModelID to ensure notification shows correct icon and name
     try:
-        myappid = u'Jim.VisionDriverBox.v1' # 任意唯一标识字符串
+        myappid = u'vsDriverBox.v1' # 任意唯一标识字符串
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except Exception:
         pass

@@ -13,6 +13,7 @@ import threading
 import json
 import os
 import ctypes
+import sys
 
 class ConfigContext(object):
     def __init__(self):
@@ -23,8 +24,16 @@ class ConfigContext(object):
             'board': threading.Event(),
             'light': threading.Event()
         }
-        # Hidden config file path: ../../src/.sys_cfg
-        self.config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "src", ".syscfg")
+        
+        # Determine persistent config path
+        if getattr(sys, 'frozen', False):
+            # If bundled, store in the same directory as the executable
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            # If running as script, use the project structure
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            
+        self.config_path = os.path.join(base_dir, "src", ".syscfg")
 
     def load(self):
         """Load configuration from disk into memory

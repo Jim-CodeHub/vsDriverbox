@@ -5,6 +5,7 @@ block_cipher = None
 # Define data files to include
 added_files = [
     ('src/icon/*.png', 'src/icon'),
+    ('src/icon/*.ico', 'src/icon'),
     ('drivers/camera/DLL/*.dll', 'drivers/camera/DLL'),
 ]
 
@@ -42,7 +43,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='src/icon/State_Standby.png', # Use one of the icons as EXE icon
+    icon='src/icon/State_Standby.ico', # Use the multi-resolution ICO file
 )
 
 coll = COLLECT(

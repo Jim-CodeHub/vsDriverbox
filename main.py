@@ -8,7 +8,7 @@
     Copyright(c):
     Note        :
 """
-import os
+import os, sys
 import time
 import threading
 import pystray
@@ -50,13 +50,14 @@ def load_icons():
     try:
         # Use get_resource_path to ensure icons are found when bundled
         icon_dir = get_resource_path(os.path.join('src', 'icon'))
+        # Use .ico files for better compatibility with Windows tray and notifications
         ICONS = {
-            'standby': Image.open(os.path.join(icon_dir, 'State_Standby.png')),
-            'offline': Image.open(os.path.join(icon_dir, 'State_Offline.png')),
-            'capMode': Image.open(os.path.join(icon_dir, 'State_CapMode.png')),
-            'A': Image.open(os.path.join(icon_dir, 'State_RunningA.png')),
-            'B': Image.open(os.path.join(icon_dir, 'State_RunningB.png')),
-            'C': Image.open(os.path.join(icon_dir, 'State_RunningC.png')),
+            'standby': Image.open(os.path.join(icon_dir, 'State_Standby.ico')),
+            'offline': Image.open(os.path.join(icon_dir, 'State_Offline.ico')),
+            'capMode': Image.open(os.path.join(icon_dir, 'State_CapMode.ico')),
+            'A': Image.open(os.path.join(icon_dir, 'State_RunningA.ico')),
+            'B': Image.open(os.path.join(icon_dir, 'State_RunningB.ico')),
+            'C': Image.open(os.path.join(icon_dir, 'State_RunningC.ico')),
         }
     except Exception as e:
         logger.error(f"Failed to load icons: {e}")
@@ -486,11 +487,12 @@ if __name__ == '__main__':
         print(f"Mutex check failed: {e}")
 
     # 0. Set AppUserModelID to ensure notification shows correct icon and name
+    # We set this in all environments to help Windows associate notifications with the app
     try:
-        myappid = u'vsDriverBox.v1' # 任意唯一标识字符串
+        myappid = u'vsDriverBox.v1' # Consistent with AppUserModelID in Inno Setup
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Failed to set AppUserModelID: {e}")
 
     # 1. Load configuration at startup
     config_context.load()

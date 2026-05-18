@@ -19,7 +19,7 @@ OutputBaseFilename=vsDriverBox_Setup
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=admin
-; SetupIconFile=src\icon\State_Standby.ico (If you convert png to ico)
+SetupIconFile=src\icon\State_Standby.ico
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Default.isl"
@@ -35,8 +35,8 @@ Source: "dist\vsDriverBox\*"; DestDir: "{app}"; Flags: ignoreversion recursesubd
 Source: "src\.syscfg"; DestDir: "{app}\src"; Flags: ignoreversion onlyifdoesntexist
 
 [Icons]
-Name: "{group}\Vision Driver Box"; Filename: "{app}\vsDriverBox.exe"
-Name: "{commondesktop}\Vision Driver Box"; Filename: "{app}\vsDriverBox.exe"; Tasks: desktopicon
+Name: "{group}\Vision Driver Box"; Filename: "{app}\vsDriverBox.exe"; AppUserModelID: "vsDriverBox.v1"
+Name: "{commondesktop}\Vision Driver Box"; Filename: "{app}\vsDriverBox.exe"; Tasks: desktopicon; AppUserModelID: "vsDriverBox.v1"
 
 [Registry]
 ; Auto-start on boot

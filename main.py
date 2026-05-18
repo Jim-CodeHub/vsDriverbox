@@ -21,7 +21,7 @@ from ui.config.cfgcxt import config_context
 from drivers.camera.Camera import Camera
 from drivers.Printer import Printer
 from utils.utils import logger, get_resource_path
-from utils.utils import generate_gantt_from_log
+from utils.gantt import generate_gantt_from_log
 
 # Global states
 is_started = False

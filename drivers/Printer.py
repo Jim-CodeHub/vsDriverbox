@@ -119,7 +119,6 @@ class Printer(object):
                 self.target_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.target_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 self.target_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 256 * 1024 * 1024)
-                self.target_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
                 self.target_socket.connect((self.target_ip, self.target_port))
                 self.target_socket.settimeout(10.0)
@@ -160,7 +159,6 @@ class Printer(object):
                 try:
                     client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 256 * 1024 * 1024)
-                    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
                     client_socket.settimeout(10.0)
 
                     while self.running:
@@ -214,16 +212,18 @@ class Printer(object):
 
                         if remaining_size != 0:
                             self.stop(f"Packet #{self.index} transmission interrupted, {remaining_size} bytes remaining")
-                            break
                         else:
-                            self._log(f"Packet #{self.index} received successfully")
+                            self._log(f"Packet #{self.index} received successfully, queue size: {self.forward_queue.qsize()}")
+                            client_socket.close() # close client socket actively
+
+                        break
 
                 except Exception as e:
                     if self.running:
                         self.stop(f"Client data processing error: {str(e)}")
                 finally:
                     client_socket.close()
-                    self._log(f"Connection closed: {addr[0]}:{addr[1]}")
+                    self._log(f"Connection closed: {addr[0]}:{addr[1]}, queue size: {self.forward_queue.qsize()}")
             except socket.timeout:
                 continue
             except Exception as e:

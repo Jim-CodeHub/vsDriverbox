@@ -59,7 +59,6 @@ class CameraServer:
         self.running = True
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # Optimization: set large receive buffer
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024*1024*1024)
         
         try:

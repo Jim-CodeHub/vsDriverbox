@@ -122,7 +122,6 @@ class Camera(object):
 
         self.DATA_HEADER_SIZE = 28
 
-
         self._log("Camera driver initialized")
 
     def _log(self, msg, level="info"):
@@ -226,25 +225,35 @@ class Camera(object):
             self._log(f"Note : The light can not be switched on: {str(e)}")
 
         try:
-            # 1. Open device
+            # 0. load calib yaml file
+            if not self.__stitch.load_yaml():
+                self.stop("Yaml file is missing")
+                return False
+
+            # 1. connect to modbus
+            if not self.__modbus.connect():
+                self.stop("Failed to connect modbus")
+                return False
+
+            # 2. Open device
             if not self.open_device():
                 self.stop("Failed to open camera device")
                 return False
             
-            # 2. Create stream
+            # 3. Create stream
             if not self.create_stream():
                 self.stop("Failed to create camera stream")
                 return False
             
-            # 3. Connect to data server
+            # 4. Connect to data server
             if not self.connect():
                 self.stop("Failed to connect to data server")
                 return False
             
-            # 4. Start acquisition
+            # 5. Start acquisition
             self.start_acq()
 
-            # 5. Initialize JSON Generator if in capture mode
+            # 6. Initialize JSON Generator if in capture mode
             if self.__cap_mode:
                 self.Init_JSON_Gen()
                 self.generate_white_images()
@@ -746,9 +755,10 @@ class Camera(object):
         infoList = []
         while self.running:
             try:
-                _Info2 = self.__StTQ_inf.get(block=True, timeout=1.0)
+                _Info2 = self.__StTQ_inf.get(block=False)
                 if _Info2 is None: break
                 infoList.append(_Info2)
+                self._log(f"Camera stream info: {_Info2}")
             except queue.Empty:
                 pass # shall be pass here
             except Exception as e:
@@ -879,9 +889,14 @@ class Camera(object):
             self.__StepCopy = 0
 
             self.__params = None
+
+        def load_yaml(self) -> bool:
             if self.__YamlPath and os.path.exists(self.__YamlPath):
                 with open(self.__YamlPath, 'r', encoding='utf-8') as f:
                     self.__params = yaml.safe_load(f)
+                    return True
+
+            return False
 
         @staticmethod
         def calibration(img_bgr, params):

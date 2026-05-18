@@ -34,6 +34,13 @@ mutex_handle = None  # Keep a reference to prevent garbage collection
 runtime_error_msg = None
 error_lock = threading.Lock()
 
+# Activity tracking for animation (A-B-C icons)
+active_sources = {
+    'camera': False,
+    'tool': False
+}
+activity_lock = threading.Lock()
+
 # Icon resources
 ICON_DIR = os.path.join('src', 'icon')
 ICONS = {}
@@ -56,6 +63,20 @@ def load_icons():
         # Fallback to a simple image if icons are missing
         fallback = Image.new('RGB', (64, 64), color=(73, 109, 137))
         ICONS = {k: fallback for k in ['standby', 'offline', 'capMode', 'A', 'B', 'C']}
+
+def update_activity_status(source, is_active):
+    """Updates the global is_running_process based on multiple activity sources."""
+    global is_running_process
+    with activity_lock:
+        if source in active_sources:
+            active_sources[source] = is_active
+        
+        # System is considered "running" if ANY source is active
+        is_running_process = any(active_sources.values())
+
+def on_camera_status_change(is_active):
+    """Callback for camera activity changes."""
+    update_activity_status('camera', is_active)
 
 def on_fatal_error(msg):
     """Callback triggered by drivers when a fatal error occurs."""
@@ -108,7 +129,7 @@ def icon_animation_thread():
                 was_running = False
             time.sleep(0.2)
 
-def create_camera_instance(fatal_error_cb=None):
+def create_camera_instance(fatal_error_cb=None, status_cb=None):
     """Helper to create a Camera instance with current config."""
     config = config_context.config
     return Camera(
@@ -134,7 +155,8 @@ def create_camera_instance(fatal_error_cb=None):
         light_baudrate=config.get('light_baudrate', 19200),
         light_comm_timeout=config.get('light_comm_timeout', 1000),
         log_cb=logger.info,
-        fatal_error_cb=fatal_error_cb
+        fatal_error_cb=fatal_error_cb,
+        status_cb=status_cb
     )
 
 def start_system(is_capture=False):
@@ -146,7 +168,10 @@ def start_system(is_capture=False):
 
         # 1. Instantiate Camera
         try:
-            camera_instance = create_camera_instance(fatal_error_cb=on_fatal_error)
+            camera_instance = create_camera_instance(
+                fatal_error_cb=on_fatal_error,
+                status_cb=on_camera_status_change
+            )
         except Exception as e:
             logger.error(f"Failed to create camera instance: {e}")
             return False, f"相机驱动初始化失败: {str(e)}"
@@ -279,10 +304,14 @@ def on_image_stitch(icon, item):
 
     # 3. Call stitch_from_json
     try:
+        update_activity_status('tool', True)
         temp_instance = False
         cam = camera_instance
         if cam is None:
-            cam = create_camera_instance(fatal_error_cb=on_fatal_error)
+            cam = create_camera_instance(
+                fatal_error_cb=on_fatal_error,
+                status_cb=on_camera_status_change
+            )
             temp_instance = True
         
         # Determine target JSON
@@ -306,6 +335,7 @@ def on_image_stitch(icon, item):
         logger.error(f"Image stitching failed: {e}")
         messagebox.showerror("拼接失败", f"执行拼接时发生错误：\n{str(e)}", parent=root)
     finally:
+        update_activity_status('tool', False)
         root.destroy()
 
 def on_config(icon, item):
@@ -324,13 +354,14 @@ def on_generate_gantt(icon, item):
     """Opens a file dialog to select a log file and generates a Gantt chart in a separate thread."""
     def run_gantt():
         try:
-            # 1. Determine default log directory
-            config = config_context.config
-            default_dir = config.get('log_dir', os.path.join(os.getcwd(), "logs"))
-            
-            # 2. Create a single hidden root for all dialogs in this session
+            update_activity_status('tool', True)
+            # 1. Ask for log file
             root = tk.Tk()
             root.withdraw()
+            
+            default_dir = config_context.config.get('log_dir', r"D:\vsDriverbox\log")
+            if not os.path.exists(default_dir):
+                default_dir = os.path.expanduser("~")
             
             file_path = filedialog.askopenfilename(
                 parent=root,
@@ -363,6 +394,8 @@ def on_generate_gantt(icon, item):
             err_root.withdraw()
             messagebox.showerror("错误", f"无法生成甘特图：\n{str(e)}", parent=err_root)
             err_root.destroy()
+        finally:
+            update_activity_status('tool', False)
 
     threading.Thread(target=run_gantt, daemon=True).start()
 

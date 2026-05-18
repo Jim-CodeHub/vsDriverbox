@@ -52,16 +52,19 @@ class Camera(object):
                  light_comm_timeout=1000,
                  # Callbacks
                  log_cb=None,
-                 fatal_error_cb=None) -> None:
+                 fatal_error_cb=None,
+                 status_cb=None) -> None:
         """Init IKap camera with configuration parameters
 
         :param log_cb: Callback for logging
         :param fatal_error_cb: Callback for fatal errors
+        :param status_cb: Callback for status changes (active/idle)
         """
         super().__init__()
         
         self.log_cb = log_cb
         self.fatal_error_cb = fatal_error_cb
+        self.status_cb = status_cb
 
         # 1. Base Camera Settings
         self.__bufferCnt = int(cam_buffer_count)
@@ -712,8 +715,15 @@ class Camera(object):
             self.string = self._ERROR_MAP.get(value, "Other errors")
             super().__init__(self.string)
 
-    def cb_on_start_of_stream(self, p_param): self._log("Camera stream started")
-    def cb_on_end_of_stream(self, p_param): self._log("Camera stream ended")
+    def cb_on_start_of_stream(self, p_param):
+        self._log("Camera stream started")
+        if self.status_cb:
+            self.status_cb(True)
+
+    def cb_on_end_of_stream(self, p_param):
+        self._log("Camera stream ended")
+        if self.status_cb:
+            self.status_cb(False)
     def cb_on_start_of_frame(self, p_param):
         self._log(f"Camera frame started [{self.__frameScnt}]")
         self.__frameScnt+=1

@@ -73,7 +73,10 @@ def update_activity_status(source, is_active):
             active_sources[source] = is_active
         
         # System is considered "running" if ANY source is active
-        is_running_process = any(active_sources.values())
+        new_status = any(active_sources.values())
+        if new_status != is_running_process:
+            is_running_process = new_status
+            logger.info(f"Activity status changed: is_running_process={is_running_process} (source: {source}={is_active})")
 
 def on_camera_status_change(is_active):
     """Callback for camera activity changes."""
@@ -230,8 +233,13 @@ def stop_system():
         camera_instance = None
         printer_instance = None
         is_started = False
-        is_running_process = False
         is_cap_mode = False
+        # Reset all activity sources when system stops
+        with activity_lock:
+            for source in active_sources:
+                active_sources[source] = False
+            global is_running_process
+            is_running_process = False
 
 def on_toggle_start_stop(icon, item):
     global is_started, is_running_process, is_cap_mode
@@ -241,7 +249,6 @@ def on_toggle_start_stop(icon, item):
         if success:
             is_started = True
             is_cap_mode = False
-            is_running_process = False
             icon.icon = ICONS['standby']
             logger.info("System started successfully")
             icon.notify("系统已成功启动", title="Vision Driver Box")
@@ -266,7 +273,6 @@ def on_capture_image(icon, item):
         if success:
             is_cap_mode = True
             is_started = False # Mutual exclusion: not "started" in the normal sense
-            is_running_process = False
             icon.icon = ICONS['capMode']
             logger.info("Capture image mode entered successfully")
             icon.notify("采集图像模式已启动", title="Vision Driver Box")
@@ -284,60 +290,69 @@ def on_capture_image(icon, item):
     icon.update_menu()
 
 def on_image_stitch(icon, item):
-    """Handles offline image stitching from a directory of JSON and images."""
-    global camera_instance
-    
-    # 1. Ask for directory
-    root = tk.Tk()
-    root.withdraw()
-    path = filedialog.askdirectory(parent=root, title="选择拼接目录")
-    
-    if not path:
-        root.destroy()
-        return
-
-    # 2. Check for JSON file
-    json_files = [f for f in os.listdir(path) if f.endswith('.json')]
-    if not json_files:
-        messagebox.showwarning("路径选择错误", "所选目录中没有找到JSON配置文件", parent=root)
-        root.destroy()
-        return
-
-    # 3. Call stitch_from_json
-    try:
-        update_activity_status('tool', True)
-        temp_instance = False
-        cam = camera_instance
-        if cam is None:
-            cam = create_camera_instance(
-                fatal_error_cb=on_fatal_error,
-                status_cb=on_camera_status_change
-            )
-            temp_instance = True
-        
-        # Determine target JSON
-        target_json = "LocalImageInfos.json"
-        if target_json not in json_files:
-            target_json = json_files[0]
+    """Handles offline image stitching from a directory of JSON and images in a separate thread."""
+    def run_stitch():
+        global camera_instance
+        try:
+            # 1. Ask for directory (Must be in main thread or handle carefully with tk)
+            # Actually, pystray callbacks are often already in a separate thread.
+            # But let's use a temporary root.
+            root = tk.Tk()
+            root.withdraw()
+            path = filedialog.askdirectory(parent=root, title="选择拼接目录")
             
-        logger.info(f"Starting image stitching from {path} using {target_json}")
-        stitched_img_np = cam.stitch_from_json(path, target_json)
-        
-        if stitched_img_np is not None:
-            # Save the result
-            save_path = os.path.join(path, "stitched_result.tif")
-            Image.fromarray(stitched_img_np).save(save_path)
-            messagebox.showinfo("拼接成功", f"图像拼接完成，已保存至：\n{save_path}", parent=root)
-            logger.info(f"Image stitching completed and saved to {save_path}")
-        else:
-            messagebox.showwarning("拼接失败", "拼接返回结果为空，请检查数据完整性", parent=root)
-            
-    except Exception as e:
-        logger.error(f"Image stitching failed: {e}")
-        messagebox.showerror("拼接失败", f"执行拼接时发生错误：\n{str(e)}", parent=root)
-    finally:
-        update_activity_status('tool', False)
-        root.destroy()
+            if not path:
+                root.destroy()
+                return
+
+            # 2. Check for JSON file
+            json_files = [f for f in os.listdir(path) if f.endswith('.json')]
+            if not json_files:
+                messagebox.showwarning("路径选择错误", "所选目录中没有找到JSON配置文件", parent=root)
+                root.destroy()
+                return
+
+            # 3. Call stitch_from_json
+            update_activity_status('tool', True)
+            try:
+                temp_instance = False
+                cam = camera_instance
+                if cam is None:
+                    cam = create_camera_instance(
+                        fatal_error_cb=on_fatal_error,
+                        status_cb=on_camera_status_change
+                    )
+                    temp_instance = True
+                
+                # Determine target JSON
+                target_json = "LocalImageInfos.json"
+                if target_json not in json_files:
+                    target_json = json_files[0]
+                    
+                logger.info(f"Starting image stitching from {path} using {target_json}")
+                stitched_img_np = cam.stitch_from_json(path, target_json)
+                
+                if stitched_img_np is not None:
+                    # Save the result
+                    save_path = os.path.join(path, "stitched_result.tif")
+                    Image.fromarray(stitched_img_np).save(save_path)
+                    messagebox.showinfo("拼接成功", f"图像拼接完成，已保存至：\n{save_path}", parent=root)
+                    logger.info(f"Image stitching completed and saved to {save_path}")
+                else:
+                    messagebox.showwarning("拼接失败", "拼接返回结果为空，请检查数据完整性", parent=root)
+            finally:
+                update_activity_status('tool', False)
+                root.destroy()
+                
+        except Exception as e:
+            logger.error(f"Image stitching failed: {e}")
+            # Use a new root for the error box if the previous one is gone
+            err_root = tk.Tk()
+            err_root.withdraw()
+            messagebox.showerror("拼接失败", f"执行拼接时发生错误：\n{str(e)}", parent=err_root)
+            err_root.destroy()
+
+    threading.Thread(target=run_stitch, daemon=True).start()
 
 def on_config(icon, item):
     """Opens the configuration UI in a separate thread."""

@@ -2,6 +2,9 @@
 import re
 import os
 from datetime import datetime
+import matplotlib
+# Force PDF backend to avoid import errors in some environments
+matplotlib.use('PDF')
 import matplotlib.pyplot as plt
 from tkinter import messagebox, Tk
 
@@ -71,20 +74,21 @@ def generate_gantt_from_log(log_path):
 
                 # --- Printer Logic: Accept -> Receive(ID) -> Close ---
                 elif "Accepted connection from" in msg:
-                    addr = re.search(r'from: (.*)', msg).group(1)
+                    # 使用 [^,\s]+ 排除逗号及空格，只抓取 IP:Port 部分
+                    addr = re.search(r'from: ([^,\s]+)', msg).group(1)
                     printer_pending[addr] = {'start': ts, 'pkt_id': None}
                 
                 elif "received successfully" in msg:
                     # 获取 Packet ID
                     pkt_idx = re.search(r'Packet #(\d+)', msg).group(1)
                     # 假设收到成功的包对应的是该地址当前处于 pending 状态的连接
-                    # 如果有多个地址，这里取最后一个匹配到的地址（通常同时只有一个活动连接）
                     if printer_pending:
                         last_addr = list(printer_pending.keys())[-1]
                         printer_pending[last_addr]['pkt_id'] = pkt_idx
                 
                 elif "Connection closed" in msg:
-                    addr = re.search(r'closed: (.*)', msg).group(1)
+                    # 使用 [^,\s]+ 确保抓取的地址与 Accepted 时一致，排除逗号后的 queue size
+                    addr = re.search(r'closed: ([^,\s]+)', msg).group(1)
                     if addr in printer_pending:
                         info = printer_pending.pop(addr)
                         if info['pkt_id'] is not None:

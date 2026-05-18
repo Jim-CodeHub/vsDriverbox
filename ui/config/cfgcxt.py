@@ -58,54 +58,69 @@ class ConfigContext(object):
         }
         
         # Determine persistent config path
+        # 1. Installation directory path (read-only default)
         if getattr(sys, 'frozen', False):
-            # If bundled, store in the same directory as the executable
             base_dir = os.path.dirname(sys.executable)
         else:
-            # If running as script, use the project structure
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-            
-        self.config_path = os.path.join(base_dir, "src", ".syscfg")
+        self.install_config_path = os.path.join(base_dir, "src", ".syscfg")
+
+        # 2. Preferred D drive path (user writable and easy to find)
+        d_drive_dir = r"D:\vsDriverbox"
+        self.user_config_path = os.path.join(d_drive_dir, ".syscfg")
+
+        # 3. Fallback to AppData if D drive is not available
+        if not os.path.exists("D:\\"):
+            appdata_dir = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), "VisionDriverBox")
+            self.user_config_path = os.path.join(appdata_dir, ".syscfg")
 
     def load(self):
         """Load configuration from disk into memory
-
-        :param: None
-        :return: None
-        :raises: None
-        :note:: Uses default configuration if loading fails
+        Tries User AppData first, then falls back to installation directory.
         """
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.config.clear()
-                    self.config.update(data)
-            except Exception:
-                # Silently fail, using default values elsewhere
-                pass
+        # Try user config first
+        paths_to_try = [self.user_config_path, self.install_config_path]
+        
+        for path in paths_to_try:
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if data:
+                            self.config.update(data)
+                            # If we successfully loaded from any path, we stop
+                            return
+                except Exception:
+                    continue
 
     def save(self, new_data):
         """Save new configuration to disk and update memory cache
-
-        :param new_data: New configuration dictionary
-        :return: True for success, False for failure
-        :raises: None
-        :note:: Sets configuration file as hidden on Windows
+        Always saves to User AppData to avoid permission issues.
+        Uses atomic write (temp file + rename) to prevent corruption.
         """
-        self.config.clear()
         self.config.update(new_data)
+        temp_path = self.user_config_path + ".tmp"
         try:
-            os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-            with open(self.config_path, 'w', encoding='utf-8') as f:
+            os.makedirs(os.path.dirname(self.user_config_path), exist_ok=True)
+            
+            # Atomic write: dump to temp file first
+            with open(temp_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=4, ensure_ascii=False)
+            
+            # Move temp file to actual config path
+            if os.path.exists(self.user_config_path):
+                os.remove(self.user_config_path)
+            os.rename(temp_path, self.user_config_path)
             
             # Set file as hidden on Windows
             if os.name == 'nt':
                 FILE_ATTRIBUTE_HIDDEN = 0x02
-                ctypes.windll.kernel32.SetFileAttributesW(self.config_path, FILE_ATTRIBUTE_HIDDEN)
+                ctypes.windll.kernel32.SetFileAttributesW(self.user_config_path, FILE_ATTRIBUTE_HIDDEN)
             return True
         except Exception as e:
+            if os.path.exists(temp_path):
+                try: os.remove(temp_path)
+                except: pass
             return False
 
     def notify_all(self):

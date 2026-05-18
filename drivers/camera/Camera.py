@@ -222,11 +222,11 @@ class Camera(object):
         :raises: None
         :note:: Automatically calls stop() on any failure
         """
-        try:
-            if not self.__light.set_switch(True):
-                return False, "灯光控制器连接失败，请检查串口或电源"
-        except Exception as e:
-            return False, f"灯光控制器错误: {str(e)}"
+        #try:
+        #    if not self.__light.set_switch(True):
+        #        return False, "灯光控制器连接失败，请检查串口或电源"
+        #except Exception as e:
+        #    return False, f"灯光控制器错误: {str(e)}"
 
         try:
             # 0. load calib yaml file

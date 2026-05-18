@@ -85,6 +85,7 @@ class Camera(object):
         self.__isStarted = False
         self.__frameScnt = 0
         self.__frameEcnt = 0
+        self.__frame_inx = 0;
         self.__JSON_Gen_ = None
         self.__cap_mode = False # Default to False, can be set if needed
 
@@ -785,6 +786,11 @@ class Camera(object):
                     Image.fromarray(image).save(img_path, dpi=(self.__Image_DPI, self.__Image_DPI))
                 else:
                     fresh, y_step = self.__stitch.stitch_from_ram(_image=image, Step=_Info["Step"], Direction=_Info["Direction"], MotionStartPoint=_Info["MotionStartPoint"])
+                    if 0 == self.__frame_inx:
+                        self.__DtTQueue.put((self.__stitch.get_addons(), 834))
+
+                    self.__frame_inx += 1
+
                     self.__DtTQueue.put((fresh.copy(), y_step))
                 self.__StTQ_inf.task_done()
                 self.__StTQ_img.task_done()
@@ -892,7 +898,8 @@ class Camera(object):
             self.__x_s_cut_ = canvas_start
             self.__x_e_cut_ = canvas_start + canvas_width
 
-            self.__hold_pix = hold_pix
+            self.__add_ons_ = []
+            self.__upOffset = hold_pix
 
             self.__YamlPath = YamlPath
 
@@ -1018,7 +1025,11 @@ class Camera(object):
 
             """------------------------------------------------------------------- Y axis handler --------------------------------------------------------"""
 
-            fresh = _image_[overlap-self.__hold_pix:_image_.shape[0] - self.__hold_pix, :]
+            fresh = _image_[overlap-self.__upOffset:_image_.shape[0] - self.__upOffset, :]
+
+            """------------------------------------------------------------------- Y axis handler --------------------------------------------------------"""
+            if 0 == self.__StepCopy:
+                self.__add_ons_.append(_image_[overlap - self.__upOffset - 834:overlap - self.__upOffset, :].copy())
 
             return fresh
 
@@ -1073,6 +1084,7 @@ class Camera(object):
         def set_Invert(self, invt): self.__x_invert = invt
         def set_YmPath(self, path): self.__YamlPath = path
         def step_Reset(self)      : self.__StepCopy = 0
+        def get_addons(self      ): return self.__add_ons_.pop(0)
 
     class VisionModbus(object):
         r"""

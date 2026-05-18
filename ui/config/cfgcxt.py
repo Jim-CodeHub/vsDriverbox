@@ -17,7 +17,39 @@ import sys
 
 class ConfigContext(object):
     def __init__(self):
-        self.config = {}
+        # Default configuration values to ensure consistency across environments
+        self.config = {
+            "data_listen_addr": "127.0.0.1",
+            "data_listen_port": "9111",
+            "forward_target_addr": "127.0.0.1",
+            "forward_target_port": "9100",
+            "print_length": "100000",
+            "print_width": "1800",
+            "buffer_size": "10240",
+            "log_dir": r"D:\vsDriverbox\log",
+            "log_limit": "10240",
+            "cam_buffer_count": "10",
+            "data_recv_addr": "127.0.0.1",
+            "data_recv_port": "9120",
+            "capture_img_len": "100",
+            "calib_file": r"D:\vsDriverbox\calib.yaml",
+            "capture_save_dir": r"D:\vsDriverbox\cap",
+            "rip_send_dir": r"D:\vsDriverbox\rip",
+            "board_comm_addr": "192.168.1.99",
+            "board_comm_port": "502",
+            "board_comm_timeout": "3000",
+            "board_comm_retry": "3",
+            "light_serial_port": "COM3",
+            "light_baudrate": "19200",
+            "light_comm_timeout": "1000",
+            "dpi": "300",
+            "stitch_left_ref": "2461790",
+            "stitch_right_ref": "29057700",
+            "img_stitch_offset": "629",
+            "canvas_start_pos": "7906",
+            "canvas_end_pos": "21259",
+            "overlap_offset_pix": "500"
+        }
         # Define synchronization events for business threads
         self.events = {
             'camera': threading.Event(),

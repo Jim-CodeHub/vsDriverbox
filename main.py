@@ -31,6 +31,8 @@ icon_instance = None
 camera_instance = None
 printer_instance = None
 mutex_handle = None  # Keep a reference to prevent garbage collection
+runtime_error_msg = None
+error_lock = threading.Lock()
 
 # Icon resources
 ICON_DIR = os.path.join('src', 'icon')
@@ -55,13 +57,40 @@ def load_icons():
         fallback = Image.new('RGB', (64, 64), color=(73, 109, 137))
         ICONS = {k: fallback for k in ['standby', 'offline', 'capMode', 'A', 'B', 'C']}
 
+def on_fatal_error(msg):
+    """Callback triggered by drivers when a fatal error occurs."""
+    global runtime_error_msg
+    with error_lock:
+        if runtime_error_msg is None:
+            runtime_error_msg = msg
+
+def handle_runtime_error():
+    """Processes the runtime error, stops the system and updates UI."""
+    global runtime_error_msg, icon_instance
+    msg = None
+    with error_lock:
+        msg = runtime_error_msg
+        runtime_error_msg = None
+    
+    if msg and icon_instance:
+        logger.error(f"Runtime error detected: {msg}")
+        stop_system()
+        icon_instance.icon = ICONS['offline']
+        icon_instance.notify(f"运行异常中断: {msg}", title="系统错误")
+        icon_instance.update_menu()
+
 def icon_animation_thread():
     """Cycles through A, B, C icons when is_running_process is True."""
-    global is_running_process, icon_instance
+    global is_running_process, icon_instance, runtime_error_msg
     frames = ['A', 'B', 'C']
     idx = 0
     was_running = False
     while True:
+        # 1. Check for runtime errors from background threads
+        if runtime_error_msg is not None:
+            handle_runtime_error()
+
+        # 2. Handle normal animation
         if is_running_process and icon_instance:
             icon_instance.icon = ICONS[frames[idx]]
             idx = (idx + 1) % len(frames)
@@ -79,7 +108,7 @@ def icon_animation_thread():
                 was_running = False
             time.sleep(0.2)
 
-def create_camera_instance():
+def create_camera_instance(fatal_error_cb=None):
     """Helper to create a Camera instance with current config."""
     config = config_context.config
     return Camera(
@@ -104,7 +133,8 @@ def create_camera_instance():
         light_serial_port=config.get('light_serial_port', 'COM3'),
         light_baudrate=config.get('light_baudrate', 19200),
         light_comm_timeout=config.get('light_comm_timeout', 1000),
-        log_cb=logger.info
+        log_cb=logger.info,
+        fatal_error_cb=fatal_error_cb
     )
 
 def start_system(is_capture=False):
@@ -116,9 +146,10 @@ def start_system(is_capture=False):
 
         # 1. Instantiate Camera
         try:
-            camera_instance = create_camera_instance()
+            camera_instance = create_camera_instance(fatal_error_cb=on_fatal_error)
         except Exception as e:
             logger.error(f"Failed to create camera instance: {e}")
+            return False, f"相机驱动初始化失败: {str(e)}"
 
         # 2. Instantiate Printer
         printer_instance = Printer(
@@ -128,7 +159,8 @@ def start_system(is_capture=False):
             target_port=config.get('forward_target_port', 9100),
             print_length=config.get('print_length', 100000),
             buffer_size=config.get('buffer_size', 10240),
-            log_cb=logger.info
+            log_cb=logger.info,
+            fatal_error_cb=on_fatal_error
         )
 
         # 3. Set capture mode if requested
@@ -136,11 +168,13 @@ def start_system(is_capture=False):
             camera_instance.set_capMode(True)
 
         # 4. Start drivers
-        if not camera_instance.start():
-            raise Exception("相机驱动启动失败，请检查连接或参数")
+        success, err = camera_instance.start()
+        if not success:
+            raise Exception(err)
         
-        if not printer_instance.start():
-            raise Exception("打印转发驱动启动失败，请检查端口占用或网络")
+        success, err = printer_instance.start()
+        if not success:
+            raise Exception(err)
 
         return True, None
     except Exception as e:
@@ -248,7 +282,7 @@ def on_image_stitch(icon, item):
         temp_instance = False
         cam = camera_instance
         if cam is None:
-            cam = create_camera_instance()
+            cam = create_camera_instance(fatal_error_cb=on_fatal_error)
             temp_instance = True
         
         # Determine target JSON

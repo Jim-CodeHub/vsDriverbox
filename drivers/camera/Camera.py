@@ -215,40 +215,41 @@ class Camera(object):
         """Start camera: Open device, create stream, connect to data server, and start acquisition.
 
         :param: None
-        :return: True for success, False for failure
-        :raises: Exception
+        :return: (True, None) for success, (False, error_msg) for failure
+        :raises: None
         :note:: Automatically calls stop() on any failure
         """
         try:
-            self.__light.set_switch(True)
+            if not self.__light.set_switch(True):
+                return False, "灯光控制器连接失败，请检查串口或电源"
         except Exception as e:
-            self._log(f"Note : The light can not be switched on: {str(e)}")
+            return False, f"灯光控制器错误: {str(e)}"
 
         try:
             # 0. load calib yaml file
-            if not self.__stitch.load_yaml():
+            if not self.__stitch.load_calib_yaml():
                 self.stop("Yaml file is missing")
-                return False
+                return False, "标定文件未选定或路径错误"
 
             # 1. connect to modbus
             if not self.__modbus.connect():
                 self.stop("Failed to connect modbus")
-                return False
+                return False, "PLC连接失败，请检查网线或IP设置"
 
             # 2. Open device
             if not self.open_device():
                 self.stop("Failed to open camera device")
-                return False
+                return False, "相机连接失败，请检查光纤或驱动"
             
             # 3. Create stream
             if not self.create_stream():
                 self.stop("Failed to create camera stream")
-                return False
+                return False, "相机流创建失败，请检查资源占用"
             
             # 4. Connect to data server
             if not self.connect():
                 self.stop("Failed to connect to data server")
-                return False
+                return False, "数据服务连接失败，请检查端口占用"
             
             # 5. Start acquisition
             self.start_acq()
@@ -260,11 +261,12 @@ class Camera(object):
                 self._log("Capture mode JSON generator initialized")
 
             self._log("Camera driver started successfully")
-            return True
+            return True, None
             
         except Exception as e:
-            self.stop(f"Exception during camera startup: {str(e)}")
-            return False
+            err_msg = f"相机启动异常: {str(e)}"
+            self.stop(err_msg)
+            return False, err_msg
 
     def stop(self, reason=None):
         """Stop camera: Stop acquisition, destroy stream, disconnect, and close device.
@@ -710,10 +712,8 @@ class Camera(object):
             self.string = self._ERROR_MAP.get(value, "Other errors")
             super().__init__(self.string)
 
-    def cb_on_start_of_stream(self, p_param):
-        self._log("Camera stream started")
-    def cb_on_end_of_stream(self, p_param):
-        self._log("Camera stream ended")
+    def cb_on_start_of_stream(self, p_param): self._log("Camera stream started")
+    def cb_on_end_of_stream(self, p_param): self._log("Camera stream ended")
     def cb_on_start_of_frame(self, p_param):
         self._log(f"Camera frame started [{self.__frameScnt}]")
         self.__frameScnt+=1
@@ -740,16 +740,11 @@ class Camera(object):
         except Exception as e:
             self._log_error(f"Frame callback error: {str(e)}")
 
-    def cb_on_time_out(self, p_param):
-        self._log("Camera timeout")
-    def cb_on_frame_lost(self, p_param):
-        self._log("Camera frame lost")
-    def cb_on_image_data_error(self, p_param):
-        self._log("Camera image data error")
-    def cb_on_end_of_line(self, p_param):
-        self._log("Camera end of line")
-    def cb_on_end_of_batch(self, p_param):
-        self._log("Camera end of batch")
+    def cb_on_time_out(self, p_param): self._log("Camera timeout")
+    def cb_on_frame_lost(self, p_param): self._log("Camera frame lost")
+    def cb_on_image_data_error(self, p_param): self._log("Camera image data error")
+    def cb_on_end_of_line(self, p_param): self._log("Camera end of line")
+    def cb_on_end_of_batch(self, p_param): self._log("Camera end of batch")
 
     def __St_Thread(self):
         infoList = []
@@ -758,7 +753,6 @@ class Camera(object):
                 _Info2 = self.__StTQ_inf.get(block=False)
                 if _Info2 is None: break
                 infoList.append(_Info2)
-                self._log(f"Camera stream info: {_Info2}")
             except queue.Empty:
                 pass # shall be pass here
             except Exception as e:
@@ -769,6 +763,11 @@ class Camera(object):
             try:
                 image = self.__StTQ_img.get(block=True, timeout=1.0)
                 if image is None: break
+
+                if not infoList:
+                    if self.running:
+                        self.stop(f"Stitch thread exception4: infoList is empty")
+                    break
 
                 _Info = infoList.pop(0)
                 if self.__cap_mode:
@@ -874,6 +873,7 @@ class Camera(object):
             :param YamlPath: YAML path for calib
             :return:None
             :raises None
+            :note : Yaml file SHALL BE loaded (by load_calib_yaml()) before any stitch function used
             """
             self.__K_Coef__ = (25.4 / DPI) * 10000.0
             self.__x_base_L = int(x_base_L / self.__K_Coef__)
@@ -890,7 +890,7 @@ class Camera(object):
 
             self.__params = None
 
-        def load_yaml(self) -> bool:
+        def load_calib_yaml(self) -> bool:
             if self.__YamlPath and os.path.exists(self.__YamlPath):
                 with open(self.__YamlPath, 'r', encoding='utf-8') as f:
                     self.__params = yaml.safe_load(f)
@@ -1345,7 +1345,7 @@ class Camera(object):
                 return False if data is None or not re.match(r'^\$DA\d{3}#$', data) else True, re.findall(r'\d+', data)
 
         def set_voltage(self, level: bool) -> bool:
-            """Set voltage of light.
+            """Set the voltage of light.
 
             :param level: True for High and False for Low
             :return: False when timeout without right response or True

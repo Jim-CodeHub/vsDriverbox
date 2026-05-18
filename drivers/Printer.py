@@ -106,7 +106,7 @@ class Printer(object):
         """Start driver: Connect to target server and start local listening service.
 
         :param: None
-        :return: True for success, False for failure
+        :return: (True, None) for success, (False, error_msg) for failure
         :raises: None
         :note:: Automatically calls stop() on any failure
         """
@@ -125,8 +125,9 @@ class Printer(object):
                 self.target_connected = True
                 self._log(f"Connected to target server {self.target_ip}:{self.target_port}")
             except Exception as e:
-                self.stop(f"Failed to connect to target server: {str(e)}")
-                return False
+                err_msg = f"打印机连接失败，请检查IP和端口: {str(e)}"
+                self.stop(err_msg)
+                return False, err_msg
 
         # 2. Attempt to start local listening service
         try:
@@ -144,10 +145,11 @@ class Printer(object):
             self.forward_thread = threading.Thread(target=self.forward_worker, daemon=True)
             self.forward_thread.start()
             
-            return True
+            return True, None
         except Exception as e:
-            self.stop(f"Failed to start local server: {str(e)}")
-            return False
+            err_msg = f"打印转发服务启动失败，请检查端口占用: {str(e)}"
+            self.stop(err_msg)
+            return False, err_msg
 
     def server_loop(self):
         """Main listening loop, serial processing of single connection"""
@@ -212,11 +214,12 @@ class Printer(object):
 
                         if remaining_size != 0:
                             self.stop(f"Packet #{self.index} transmission interrupted, {remaining_size} bytes remaining")
+                            break
                         else:
                             self._log(f"Packet #{self.index} received successfully, queue size: {self.forward_queue.qsize()}")
-                            client_socket.close() # close client socket actively
-
-                        break
+                            #client_socket.close() # close client socket actively
+                            #break
+                            #接收完一个包后，到recv返回为空（客户端主动关闭socket），需要0.5秒，考虑都打印板卡缓冲负载问题，刚好使用这个时机
 
                 except Exception as e:
                     if self.running:

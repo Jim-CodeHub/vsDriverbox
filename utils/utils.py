@@ -39,7 +39,7 @@ class Logger:
         if self._initialized:
             return
 
-        self.log_dir = log_dir if log_dir else "logs"
+        self.log_dir = log_dir if log_dir else r"D:\vsDriverbox\log"
         self.max_total_bytes = max_total_mb * 1024 * 1024
         self.max_file_bytes = 10 * 1024 * 1024
         self.logger = logging.getLogger("vsDriverbox")

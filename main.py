@@ -23,6 +23,9 @@ from drivers.Printer import Printer
 from utils.utils import logger, get_resource_path
 from utils.gantt import generate_gantt_from_log
 
+# Global constants
+APP_VERSION = "1.0.0"
+
 # Global states
 is_started = False
 is_running_process = False
@@ -463,7 +466,7 @@ def setup_tray():
     icon_instance = pystray.Icon(
         'vsDriverbox',
         icon=ICONS['offline'], # 恢复为 offline 启动，符合原逻辑
-        title='Vision Driver Box',
+        title=f'Vision Driver Box v{APP_VERSION}',
         menu=menu
     )
 

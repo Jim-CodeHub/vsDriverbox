@@ -788,10 +788,10 @@ class Camera(object):
                     Image.fromarray(image).save(img_path, dpi=(self.__Image_DPI, self.__Image_DPI))
                 else:
                     fresh, y_step = self.__stitch.stitch_from_ram(_image=image, Step=_Info["Step"], Direction=_Info["Direction"], MotionStartPoint=_Info["MotionStartPoint"])
-                    if 0 == self.__frame_inx:
-                        self.__DtTQueue.put((self.__stitch.get_addons(), 834))
-
-                    self.__frame_inx += 1
+                    # if 0 == self.__frame_inx:
+                    #     self.__DtTQueue.put((self.__stitch.get_addons(), 834))
+                    #
+                    # self.__frame_inx += 1
 
                     self.__DtTQueue.put((fresh.copy(), y_step))
                 self.__StTQ_inf.task_done()

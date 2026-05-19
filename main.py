@@ -169,6 +169,10 @@ def start_system(is_capture=False):
     global camera_instance, printer_instance
     try:
         config = config_context.config
+        
+        # Ensure a new log file is created for each system start
+        logger.sync_config(config, force=True)
+        
         logger.info(f"Starting system (Capture Mode: {is_capture}) with current configuration...")
 
         # 1. Instantiate Camera

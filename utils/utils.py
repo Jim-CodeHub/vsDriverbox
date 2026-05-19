@@ -55,7 +55,8 @@ class Logger:
             except Exception:
                 return
 
-        log_file = os.path.join(self.log_dir, f"app_{datetime.now().strftime('%Y%m%d_%H%M')}.log")
+        # New format: YYYYMMDD_HHMMSS.log (no 'app_' prefix, includes seconds)
+        log_file = os.path.join(self.log_dir, f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
 
         handler = RotatingFileHandler(
             log_file,
@@ -106,10 +107,11 @@ class Logger:
         except Exception:
             pass
 
-    def sync_config(self, config_dict):
+    def sync_config(self, config_dict, force=False):
         """Update logger settings from configuration dictionary
 
         :param config_dict: Configuration dictionary
+        :param force: Whether to force create a new log file even if config hasn't changed
         :return: None
         :raises: None
         :note:: If critical parameters change, will reconstruct Handler and perform a cleanup
@@ -119,8 +121,8 @@ class Logger:
 
         new_max_total_bytes = max_mb * 1024 * 1024
 
-        # Always setup handler if it doesn't exist yet, or if config changed
-        if not self.logger.hasHandlers() or log_dir != self.log_dir or new_max_total_bytes != self.max_total_bytes:
+        # Always setup handler if it doesn't exist yet, or if config changed, or if forced
+        if force or not self.logger.hasHandlers() or log_dir != self.log_dir or new_max_total_bytes != self.max_total_bytes:
             self.log_dir = log_dir
             self.max_total_bytes = new_max_total_bytes
             self._setup_handler()

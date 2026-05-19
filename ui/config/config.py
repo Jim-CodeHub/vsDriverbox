@@ -68,6 +68,7 @@ class ConfigUI:
         self._add_entry(print_frame, "打印长度设置:", "100000", 4, unit="mm", key="print_length", vcmd=self.v_int)
         self._add_entry(print_frame, "打印宽度设置:", "1800", 5, unit="mm", key="print_width", vcmd=self.v_int)
         self._add_entry(print_frame, "缓冲字节设置:", "10240", 6, unit="KB", key="buffer_size", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标延迟:", "500", 7, unit="ms", key="forward_target_delay", vcmd=self.v_int)
         
         # 2. Log Configuration
         log_frame = ttk.LabelFrame(col0, text="日志配置", padding="5")
@@ -91,9 +92,10 @@ class ConfigUI:
         self._add_entry(cam_settings_frame, "数据接收地址:", "127.0.0.1", 1, key="data_recv_addr")
         self._add_entry(cam_settings_frame, "数据接收端口:", "9120", 2, key="data_recv_port", vcmd=self.v_int)
         self._add_entry(cam_settings_frame, "采集图像长度:", "100", 3, unit="cm", key="capture_img_len", vcmd=self.v_float)
-        self._add_browse_entry(cam_settings_frame, "标定文件选择:", 4, is_file=True, default_val=r"D:\vsDriverbox\calib.yaml", key="calib_file", filetypes=[("YAML files", "*.yaml"), ("All files", "*.*")])
-        self._add_browse_entry(cam_settings_frame, "采集存储目录:", 5, default_val=r"D:\vsDriverbox\cap", key="capture_save_dir")
-        self._add_browse_entry(cam_settings_frame, "白图发送目录:", 6, default_val=r"D:\vsDriverbox\rip", show_status=False, key="rip_send_dir")
+        self._add_entry(cam_settings_frame, "采集图像高度:", "2048", 4, unit="pix", key="capture_img_height", vcmd=self.v_int)
+        self._add_browse_entry(cam_settings_frame, "标定文件选择:", 5, is_file=True, default_val=r"D:\vsDriverbox\calib.yaml", key="calib_file", filetypes=[("YAML files", "*.yaml"), ("All files", "*.*")])
+        self._add_browse_entry(cam_settings_frame, "采集存储目录:", 6, default_val=r"D:\vsDriverbox\cap", key="capture_save_dir")
+        self._add_browse_entry(cam_settings_frame, "白图发送目录:", 7, default_val=r"D:\vsDriverbox\rip", show_status=False, key="rip_send_dir")
         
         # 3.2 Stitching Settings
         stitch_frame = ttk.LabelFrame(col1, text="拼接设置", padding="5")

@@ -7,7 +7,7 @@
     Note        : TCP data forwarding driver
 """
 
-import socket, threading, struct, queue
+import socket, threading, struct, queue, time
 
 
 class Printer(object):
@@ -18,6 +18,7 @@ class Printer(object):
                  target_port=9100, 
                  print_length=100000, 
                  buffer_size=10240, 
+                 target_delay=500,
                  log_cb=None,
                  fatal_error_cb=None):
         """Printer Driver Initialization
@@ -28,6 +29,7 @@ class Printer(object):
         :param target_port: Target printer/server Port
         :param print_length: Length of print in mm
         :param buffer_size: Buffer size in KB
+        :param target_delay: Delay before forwarding to target in ms
         :param log_cb: Callback for logging (e.g. logger.info)
         :param fatal_error_cb: Callback for fatal errors
         """
@@ -43,6 +45,7 @@ class Printer(object):
         self.target_port = int(target_port)
         self.print_length = int(print_length)
         self.buffer_size = int(buffer_size) * 1024 # KB to Bytes
+        self.target_delay = int(target_delay) / 1000.0 # ms to seconds
         
         # Internal state
         self.running = False
@@ -217,6 +220,12 @@ class Printer(object):
                             break
                         else:
                             self._log(f"Packet #{self.index} received successfully, queue size: {self.forward_queue.qsize()}")
+
+                            client_socket.close() # close client socket actively
+                            if self.target_delay > 0:
+                                time.sleep(self.target_delay)
+                            break
+
                             #client_socket.close() # close client socket actively
                             #break
                             #接收完一个包后，到recv返回为空（客户端主动关闭socket），需要0.5秒，考虑都打印板卡缓冲负载问题，刚好使用这个时机

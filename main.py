@@ -141,6 +141,7 @@ def create_camera_instance(fatal_error_cb=None, status_cb=None):
         data_recv_addr=config.get('data_recv_addr', "127.0.0.1"),
         data_recv_port=config.get('data_recv_port', 9120),
         capture_img_len=config.get('capture_img_len', 100.0),
+        capture_img_height=config.get('capture_img_height', 2048),
         capture_save_dir=config.get('capture_save_dir', r"D:\vsDriverbox\cap"),
         rip_send_dir=config.get('rip_send_dir', r"D:\vsDriverbox\rip"),
         dpi=config.get('dpi', 300),
@@ -188,6 +189,7 @@ def start_system(is_capture=False):
             target_port=config.get('forward_target_port', 9100),
             print_length=config.get('print_length', 100000),
             buffer_size=config.get('buffer_size', 10240),
+            target_delay=config.get('forward_target_delay', 500),
             log_cb=logger.info,
             fatal_error_cb=on_fatal_error
         )

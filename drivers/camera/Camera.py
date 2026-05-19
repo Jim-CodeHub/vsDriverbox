@@ -30,6 +30,7 @@ class Camera(object):
                  data_recv_addr="127.0.0.1",
                  data_recv_port=9120,
                  capture_img_len=100.0,
+                 capture_img_height=2048,
                  capture_save_dir=r"D:\vsDriverbox\cap",
                  rip_send_dir=r"D:\vsDriverbox\rip",
                  dpi=300,
@@ -71,6 +72,7 @@ class Camera(object):
         self.data_ip = data_recv_addr
         self.data_port = int(data_recv_port)
         self.__cap_Leng = float(capture_img_len)
+        self.__cap_Height = int(capture_img_height)
         self.__cap_path = capture_save_dir
         self.__cap_white_path = rip_send_dir
         self.__Image_DPI = int(dpi)

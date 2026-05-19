@@ -16,7 +16,7 @@ echo.
 echo [1/4] Cleaning old build directories...
 if exist dist rmdir /s /q dist
 if exist build rmdir /s /q build
-if exist installer_output rmdir /s /q installer_output
+if exist setup_exe rmdir /s /q setup_exe
 
 echo.
 echo [2/4] Packaging Python code with PyInstaller...
@@ -50,10 +50,16 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
+:: 5. Post-build cleanup
+echo.
+echo [5/5] Post-build cleanup...
+if exist dist rmdir /s /q dist
+if exist build rmdir /s /q build
+
 echo.
 echo ==========================================
 echo    Build successful!
-echo    Installer is in: installer_output\
+echo    Installer is in: setup_exe\
 echo    Version: !APP_VERSION!
 echo ==========================================
 pause

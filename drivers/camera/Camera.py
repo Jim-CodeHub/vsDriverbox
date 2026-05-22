@@ -786,8 +786,14 @@ class Camera(object):
                 if self.__cap_mode:
                     img_path = self.__JSON_Gen_.generate_json(y_steps=_Info["Step"], direction=_Info["Direction"], x_pos=_Info["MotionStartPoint"])
                     Image.fromarray(image).save(img_path, dpi=(self.__Image_DPI, self.__Image_DPI))
+
+                    self._log(f"Cap mode Image saved[{self.__frameEcnt}], path={img_path}")
+                    self.__frameEcnt += 1
                 else:
+                    self._log(f"Stitching...image={image.shape}, Step={_Info['Step']}, Direction={_Info['Direction']}, MotionStartPoint={_Info['MotionStartPoint']} ")
+
                     fresh, y_step = self.__stitch.stitch_from_ram(_image=image, Step=_Info["Step"], Direction=_Info["Direction"], MotionStartPoint=_Info["MotionStartPoint"])
+
                     # if 0 == self.__frame_inx:
                     #     self.__DtTQueue.put((self.__stitch.get_addons(), 834))
                     #

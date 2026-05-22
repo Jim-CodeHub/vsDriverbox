@@ -44,5 +44,9 @@ The project provides a one-key build script `build.bat`:
 - **Imaging**: OpenCV / PIL
 - **Installer**: Inno Setup 6
 
+## Version Info
+
+v1.02 : 修改配置文件默认目录到%APPDATA%，增加stitch监控日志
+
 ---
 © 2026 Jim. All Rights Reserved.

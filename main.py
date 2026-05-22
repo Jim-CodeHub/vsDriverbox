@@ -24,7 +24,7 @@ from utils.utils import logger, get_resource_path
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.2"
 
 # Global states
 is_started = False
@@ -195,8 +195,7 @@ def start_system(is_capture=False):
             target_ip=config.get('forward_target_addr', "127.0.0.1"),
             target_port=config.get('forward_target_port', 9100),
             print_length=config.get('print_length', 100000),
-            buffer_size=config.get('buffer_size', 10240),
-            target_delay=config.get('forward_target_delay', 500),
+            buffer_size=config.get('buffer_size', 10240), target_delay=config.get('forward_target_delay', 500),
             log_cb=logger.info,
             fatal_error_cb=on_fatal_error
         )

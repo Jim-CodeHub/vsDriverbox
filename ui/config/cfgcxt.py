@@ -67,21 +67,19 @@ class ConfigContext(object):
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         self.install_config_path = os.path.join(base_dir, "src", ".syscfg")
 
-        # 2. Preferred D drive path (user writable and easy to find)
-        d_drive_dir = r"D:\vsDriverbox"
-        self.user_config_path = os.path.join(d_drive_dir, ".syscfg")
+        # 2. Preferred AppData path (Roaming) for user configuration (Standard Windows practice)
+        appdata_dir = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), "VisionDriverBox")
+        self.user_config_path = os.path.join(appdata_dir, ".syscfg")
 
-        # 3. Fallback to AppData if D drive is not available
-        if not os.path.exists("D:\\"):
-            appdata_dir = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), "VisionDriverBox")
-            self.user_config_path = os.path.join(appdata_dir, ".syscfg")
+        # 3. Fallback to D drive path for legacy compatibility if it exists
+        self.legacy_config_path = r"D:\vsDriverbox\.syscfg"
 
     def load(self):
         """Load configuration from disk into memory
-        Tries User AppData first, then falls back to installation directory.
+        Tries User AppData first, then legacy D drive, then falls back to installation directory.
         """
-        # Try user config first
-        paths_to_try = [self.user_config_path, self.install_config_path]
+        # Try user config first, then legacy, then install path
+        paths_to_try = [self.user_config_path, self.legacy_config_path, self.install_config_path]
         
         for path in paths_to_try:
             if os.path.exists(path):

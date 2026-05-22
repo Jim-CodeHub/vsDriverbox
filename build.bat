@@ -11,23 +11,19 @@ echo ==========================================
 :: 1. Auto-extract Version from main.py
 echo [0/5] Extracting version from main.py...
 
-:: Use a temporary python command to write the version to a temp file to avoid CMD parsing issues
-:: Use a more robust regex that accounts for potential line ending or quote issues
-python -c "import re; content = open('main.py', encoding='utf-8').read(); m = re.search(r'APP_VERSION\s*=\s*[\x22\x27]([^\x22\x27]+)[\x22\x27]', content); print(m.group(1)) if m else exit(1)" > _version.tmp
-
-if %errorlevel% neq 0 (
-    echo [ERROR] Failed to extract version using Python.
-    echo Please ensure main.py contains: APP_VERSION = \"1.0.0\"
-    if exist _version.tmp del _version.tmp
-    pause
-    exit /b 1
+for /f "tokens=2 delims==" %%a in ('findstr /C:"APP_VERSION =" main.py') do (
+    set "RAW_VERSION=%%a"
+    :: Remove spaces
+    set "RAW_VERSION=!RAW_VERSION: =!"
+    :: Remove double quotes
+    set "RAW_VERSION=!RAW_VERSION:"=!"
+    :: Remove single quotes
+    set "RAW_VERSION=!RAW_VERSION:'=!"
+    set "APP_VERSION=!RAW_VERSION!"
 )
 
-set /p APP_VERSION=<_version.tmp
-del _version.tmp
-
 if "!APP_VERSION!"=="" (
-    echo [ERROR] Could not extract APP_VERSION from main.py
+    echo [ERROR] APP_VERSION variable is empty.
     pause
     exit /b 1
 )

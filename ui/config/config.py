@@ -12,9 +12,12 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
+import json
 from .cfgcxt import config_context
 
-class ConfigUI:
+class ConfigUI(object):
+    # Magic header for config file validation
+    CFG_MAGIC = "VDB_CFG_V1"
     def __init__(self, root=None):
         if root is None:
             self.root = tk.Tk()
@@ -138,8 +141,15 @@ class ConfigUI:
         btn_container = ttk.Frame(self.root, padding="10")
         btn_container.pack(fill=tk.X)
         
-        ttk.Button(btn_container, text="确定", command=self.save_config).pack(side=tk.RIGHT, padx=5)
+        # Action Buttons (Right-aligned, from right to left: Cancel, OK, [Spacer], Load, Save)
         ttk.Button(btn_container, text="取消", command=self.root.destroy).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_container, text="确定", command=self.save_config).pack(side=tk.RIGHT, padx=5)
+        
+        # Spacer to pull them apart
+        ttk.Frame(btn_container, width=60).pack(side=tk.RIGHT)
+        
+        ttk.Button(btn_container, text="加载配置", command=self.import_config).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_container, text="存储配置", command=self.export_config).pack(side=tk.RIGHT, padx=5)
         
         # Load initial data
         self.load_ui_data()
@@ -225,6 +235,56 @@ class ConfigUI:
             self.root.destroy()
         else:
             messagebox.showerror("错误", "保存失败")
+
+    def export_config(self):
+        """Export current UI configuration to a .cfg file with magic header"""
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".cfg",
+            filetypes=[("Config files", "*.cfg"), ("All files", "*.*")],
+            title="存储配置"
+        )
+        if not file_path:
+            return
+
+        try:
+            config_data = {key: entry.get() for key, entry in self.entries.items()}
+            export_obj = {
+                "header": self.CFG_MAGIC,
+                "data": config_data
+            }
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(export_obj, f, indent=4, ensure_ascii=False)
+            messagebox.showinfo("成功", f"配置已成功存储至：\n{file_path}")
+        except Exception as e:
+            messagebox.showerror("错误", f"存储配置失败：\n{str(e)}")
+
+    def import_config(self):
+        """Import configuration from a .cfg file and validate magic header"""
+        file_path = filedialog.askopenfilename(
+            filetypes=[("Config files", "*.cfg"), ("All files", "*.*")],
+            title="加载配置"
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                import_obj = json.load(f)
+
+            # Validate header
+            if not isinstance(import_obj, dict) or import_obj.get("header") != self.CFG_MAGIC:
+                messagebox.showerror("错误", "无效的配置文件：特征头不匹配或格式错误。")
+                return
+
+            config_data = import_obj.get("data", {})
+            for key, value in config_data.items():
+                if key in self.entries:
+                    self.entries[key].delete(0, tk.END)
+                    self.entries[key].insert(0, str(value))
+            
+            messagebox.showinfo("成功", "配置加载成功，请点击“确定”以应用更改。")
+        except Exception as e:
+            messagebox.showerror("错误", f"加载配置失败：\n{str(e)}")
 
     def load_ui_data(self):
         """Populate UI entries from global configuration context

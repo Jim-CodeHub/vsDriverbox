@@ -197,6 +197,7 @@ class Printer(object):
                         if self.index == 1:
                             self.forward_queue.put(self._set_header(header, self.print_length))
 
+                        local_buffer = bytearray()
                         while remaining_size > 0 and self.running:
                             try:
                                 read_size = min(remaining_size, self.buffer_size)
@@ -213,7 +214,16 @@ class Printer(object):
                                 break
 
                             remaining_size -= len(chunk)
-                            self.forward_queue.put(chunk)
+                            local_buffer.extend(chunk)
+
+                            # Accumulate until buffer_size is reached
+                            if len(local_buffer) >= self.buffer_size:
+                                self.forward_queue.put(bytes(local_buffer))
+                                local_buffer.clear()
+
+                        # Flush remaining data in local_buffer
+                        if len(local_buffer) > 0:
+                            self.forward_queue.put(bytes(local_buffer))
 
                         if remaining_size != 0:
                             self.stop(f"Packet #{self.index} transmission interrupted, {remaining_size} bytes remaining")

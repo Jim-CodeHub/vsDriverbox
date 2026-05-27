@@ -24,7 +24,7 @@ from utils.utils import logger, get_resource_path
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 
 # Global states
 is_started = False

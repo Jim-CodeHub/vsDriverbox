@@ -11,6 +11,7 @@
 import os, sys
 import time
 import threading
+import multiprocessing
 import pystray
 import ctypes
 import tkinter as tk
@@ -21,10 +22,11 @@ from ui.config.cfgcxt import config_context
 from drivers.camera.Camera import Camera
 from drivers.Printer import Printer
 from utils.utils import logger, get_resource_path
+from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.3_mp"
 
 # Global states
 is_started = False
@@ -137,9 +139,10 @@ def icon_animation_thread():
             time.sleep(0.2)
 
 def create_camera_instance(fatal_error_cb=None, status_cb=None):
-    """Helper to create a Camera instance with current config."""
+    """Helper to create a Camera instance wrapped in a ProcessProxy."""
     config = config_context.config
-    return Camera(
+    return ProcessProxy(
+        Camera,
         cam_buffer_count=config.get('cam_buffer_count', 10),
         data_recv_addr=config.get('data_recv_addr', "127.0.0.1"),
         data_recv_port=config.get('data_recv_port', 9120),
@@ -189,7 +192,8 @@ def start_system(is_capture=False):
             return False, f"相机驱动初始化失败: {str(e)}"
 
         # 2. Instantiate Printer
-        printer_instance = Printer(
+        printer_instance = ProcessProxy(
+            Printer,
             listen_ip=config.get('data_listen_addr', "127.0.0.1"),
             listen_port=config.get('data_listen_port', 9111),
             target_ip=config.get('forward_target_addr', "127.0.0.1"),
@@ -492,6 +496,9 @@ def setup_tray():
     icon_instance.run()
 
 if __name__ == '__main__':
+    # Support for PyInstaller bundled executables
+    multiprocessing.freeze_support()
+    
     # 0. Single instance check using Windows Mutex
     try:
         mutex_name = u"Global\\vsDriverBox_SingleInstance_Mutex"

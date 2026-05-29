@@ -3,4 +3,4 @@
 drivers package
 """
 
-from .Printer import Printer
+from .printer.Printer import Printer

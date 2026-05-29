@@ -63,16 +63,17 @@ class ConfigUI(object):
         # 1. Print Settings
         print_frame = ttk.LabelFrame(col0, text="打印设置", padding="5")
         print_frame.grid(row=0, column=0, sticky=tk.NSEW, pady=2)
-        
-        self._add_entry(print_frame, "数据监听地址:", "127.0.0.1", 0, key="data_listen_addr")
-        self._add_entry(print_frame, "数据监听端口:", "9111", 1, key="data_listen_port", vcmd=self.v_int)
-        self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 2, key="forward_target_addr")
-        self._add_entry(print_frame, "转发目标端口:", "9100", 3, key="forward_target_port", vcmd=self.v_int)
-        self._add_entry(print_frame, "打印长度设置:", "100000", 4, unit="mm", key="print_length", vcmd=self.v_int)
-        self._add_entry(print_frame, "打印宽度设置:", "1800", 5, unit="mm", key="print_width", vcmd=self.v_int)
-        self._add_entry(print_frame, "缓冲字节设置:", "10240", 6, unit="KB", key="buffer_size", vcmd=self.v_int)
-        self._add_entry(print_frame, "转发目标延迟:", "500", 7, unit="ms", key="forward_target_delay", vcmd=self.v_int)
-        
+
+        self._add_combobox(print_frame, "转发数据方式:", ["TCP/IP", "Hs DLL"], 0, key="forward_mode")
+        self._add_entry(print_frame, "数据监听地址:", "127.0.0.1", 1, key="data_listen_addr")
+        self._add_entry(print_frame, "数据监听端口:", "9111", 2, key="data_listen_port", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 3, key="forward_target_addr")
+        self._add_entry(print_frame, "转发目标端口:", "9100", 4, key="forward_target_port", vcmd=self.v_int)
+        self._add_entry(print_frame, "打印长度设置:", "100000", 5, unit="mm", key="print_length", vcmd=self.v_int)
+        self._add_entry(print_frame, "打印宽度设置:", "1800", 6, unit="mm", key="print_width", vcmd=self.v_int)
+        self._add_entry(print_frame, "缓冲字节设置:", "10240", 7, unit="KB", key="buffer_size", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标延迟:", "500", 8, unit="ms", key="forward_target_delay", vcmd=self.v_int)
+
         # 2. Log Configuration
         log_frame = ttk.LabelFrame(col0, text="日志配置", padding="5")
         log_frame.grid(row=1, column=0, sticky=tk.NSEW, pady=2)
@@ -153,6 +154,18 @@ class ConfigUI(object):
         
         # Load initial data
         self.load_ui_data()
+
+    def _add_combobox(self, parent, label_text, values, row, key=None):
+        """Helper to add label + combobox to a grid"""
+        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky=tk.W, pady=2)
+        
+        combo = ttk.Combobox(parent, values=values, width=23, state="readonly")
+        if values:
+            combo.set(values[0])
+        combo.grid(row=row, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        if key:
+            self.entries[key] = combo
 
     def _add_entry(self, parent, label_text, default_val, row, unit="", key=None, vcmd=None):
         """Helper to add label + entry + unit to a grid"""
@@ -279,8 +292,12 @@ class ConfigUI(object):
             config_data = import_obj.get("data", {})
             for key, value in config_data.items():
                 if key in self.entries:
-                    self.entries[key].delete(0, tk.END)
-                    self.entries[key].insert(0, str(value))
+                    widget = self.entries[key]
+                    if isinstance(widget, ttk.Combobox):
+                        widget.set(value)
+                    else:
+                        widget.delete(0, tk.END)
+                        widget.insert(0, str(value))
             
             messagebox.showinfo("成功", "配置加载成功，请点击“确定”以应用更改。")
         except Exception as e:
@@ -296,8 +313,12 @@ class ConfigUI(object):
         """
         for key, value in config_context.config.items():
             if key in self.entries:
-                self.entries[key].delete(0, tk.END)
-                self.entries[key].insert(0, value)
+                widget = self.entries[key]
+                if isinstance(widget, ttk.Combobox):
+                    widget.set(value)
+                else:
+                    widget.delete(0, tk.END)
+                    widget.insert(0, str(value))
 
     def show(self):
         """Display configuration window

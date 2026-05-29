@@ -20,7 +20,7 @@ from PIL import Image
 from ui.config.config import ConfigUI
 from ui.config.cfgcxt import config_context
 from drivers.camera.Camera import Camera
-from drivers.Printer import Printer
+from drivers.printer.Printer import Printer
 from utils.utils import logger, get_resource_path
 from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
@@ -196,10 +196,12 @@ def start_system(is_capture=False):
             Printer,
             listen_ip=config.get('data_listen_addr', "127.0.0.1"),
             listen_port=config.get('data_listen_port', 9111),
+            forward_mode=config.get('forward_mode', "TCP/IP"),
             target_ip=config.get('forward_target_addr', "127.0.0.1"),
             target_port=config.get('forward_target_port', 9100),
             print_length=config.get('print_length', 100000),
-            buffer_size=config.get('buffer_size', 10240), target_delay=config.get('forward_target_delay', 500),
+            buffer_size=config.get('buffer_size', 10240),
+            target_delay=config.get('forward_target_delay', 500),
             log_cb=logger.info,
             fatal_error_cb=on_fatal_error
         )

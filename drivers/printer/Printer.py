@@ -14,6 +14,7 @@ class Printer(object):
     def __init__(self, 
                  listen_ip="127.0.0.1", 
                  listen_port=9111, 
+                 forward_mode="TCP/IP",
                  target_ip="127.0.0.1", 
                  target_port=9100, 
                  print_length=100000, 
@@ -25,6 +26,7 @@ class Printer(object):
 
         :param listen_ip: IP to listen for incoming PRN data
         :param listen_port: Port to listen for incoming PRN data
+        :param forward_mode: Data forwarding mode ("TCP/IP" or "Hs DLL")
         :param target_ip: Target printer/server IP
         :param target_port: Target printer/server Port
         :param print_length: Length of print in mm
@@ -41,6 +43,7 @@ class Printer(object):
         # Configuration
         self.listen_ip = listen_ip
         self.listen_port = int(listen_port)
+        self.forward_mode = forward_mode
         self.target_ip = target_ip
         self.target_port = int(target_port)
         self.print_length = int(print_length)
@@ -116,21 +119,25 @@ class Printer(object):
         self.running = True
         self.index = 0
         
-        # 1. Attempt to connect to target server
-        if not self.target_connected:
-            try:
-                self.target_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.target_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                self.target_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 256 * 1024 * 1024)
+        # 1. Attempt to connect to target server (or init DLL)
+        if self.forward_mode == "TCP/IP":
+            if not self.target_connected:
+                try:
+                    self.target_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    self.target_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    self.target_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 256 * 1024 * 1024)
 
-                self.target_socket.connect((self.target_ip, self.target_port))
-                self.target_socket.settimeout(10.0)
-                self.target_connected = True
-                self._log(f"Connected to target server {self.target_ip}:{self.target_port}")
-            except Exception as e:
-                err_msg = f"打印机连接失败，请检查IP和端口: {str(e)}"
-                self.stop(err_msg)
-                return False, err_msg
+                    self.target_socket.connect((self.target_ip, self.target_port))
+                    self.target_socket.settimeout(10.0)
+                    self.target_connected = True
+                    self._log(f"Connected to target server {self.target_ip}:{self.target_port}")
+                except Exception as e:
+                    err_msg = f"打印机连接失败，请检查IP和端口: {str(e)}"
+                    self.stop(err_msg)
+                    return False, err_msg
+        elif self.forward_mode == "Hs DLL":
+            # TODO: Initialize Hs DLL shared memory here
+            pass
 
         # 2. Attempt to start local listening service
         try:
@@ -261,14 +268,19 @@ class Printer(object):
                 if chunk is None:
                     break
                 
-                if self.target_socket:
-                    self.target_socket.sendall(chunk)
+                if self.forward_mode == "TCP/IP":
+                    if self.target_socket:
+                        self.target_socket.sendall(chunk)
+                elif self.forward_mode == "Hs DLL":
+                    # TODO: Forward data using Hs DLL shared memory here
+                    pass
+
                 self.forward_queue.task_done()
             except queue.Empty:
                 continue
             except Exception as e:
                 if self.running:
-                    self.stop(f"Data forwarding exception to target server: {str(e)}")
+                    self.stop(f"Data forwarding exception (mode: {self.forward_mode}): {str(e)}")
 
     def stop(self, reason=None):
         """Stop driver: Stop listening service and disconnect from target server.
@@ -309,6 +321,10 @@ class Printer(object):
             except Exception as e:
                 self._log_error(f"Failed to disconnect from target server: {str(e)}")
                 success = False
+
+        if self.forward_mode == "Hs DLL":
+            # TODO: Cleanup Hs DLL shared memory here
+            pass
         
         self._log("Driver service stopped completely")
         return success

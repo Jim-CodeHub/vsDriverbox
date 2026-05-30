@@ -58,12 +58,11 @@ lib.SendDataAutoPrintPort_Rip.restype = c_int
 def SendDataAutoPrintPort_Rip(p, size):
     """
     Send data to shared memory.
-    p    : pointer to data buffer (bytes-like object or ctypes pointer)
+    p    : bytes, bytearray or ctypes pointer 
     size : number of bytes to send
     Returns 0 on success, negative on error.
     """
-    # If p is a bytes-like object, we can use ctypes.c_void_p(ctypes.addressof(...))
-    # but here we assume the caller passes a valid pointer.
+
     return lib.SendDataAutoPrintPort_Rip(p, size)
 
 # uint64_t GetMemMapAllWriteSize(void)

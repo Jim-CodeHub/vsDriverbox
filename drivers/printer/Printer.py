@@ -7,7 +7,8 @@
     Note        : TCP data forwarding driver
 """
 
-import socket, threading, struct, queue, time
+import socket, threading, struct, queue, time, ctypes
+from . import IHsAutoPrintPort_Rip as hs_dll
 
 
 class Printer(object):
@@ -55,6 +56,9 @@ class Printer(object):
         self.server_socket = None
         self.target_socket = None
         self.target_connected = False
+        self.hs_dll_opened = False
+        self.hs_task_started = False
+        self.sent_task_size = 0
         # Increase queue depth to 512, with 1MB chunk size, user-level buffer can reach 512MB
         self.forward_queue = queue.Queue(maxsize=512)
         self.index = 0
@@ -118,6 +122,8 @@ class Printer(object):
         """
         self.running = True
         self.index = 0
+        self.sent_task_size = 0
+        self.hs_task_started = False
         
         # 1. Attempt to connect to target server (or init DLL)
         if self.forward_mode == "TCP/IP":
@@ -136,8 +142,14 @@ class Printer(object):
                     self.stop(err_msg)
                     return False, err_msg
         elif self.forward_mode == "Hs DLL":
-            # TODO: Initialize Hs DLL shared memory here
-            pass
+            if not hs_dll.IsOpendedMemMap():
+                nRet = hs_dll.OpenAutoPrintPort_Rip()
+                if nRet != 0: # HPE_SUCEES is 0
+                    err_msg = f"打开共享内存失败，错误代码: {nRet}"
+                    self.stop(err_msg)
+                    return False, err_msg
+            self.hs_dll_opened = True
+            self._log("Shared memory (Hs DLL) initialized successfully")
 
         # 2. Attempt to start local listening service
         try:
@@ -272,8 +284,39 @@ class Printer(object):
                     if self.target_socket:
                         self.target_socket.sendall(chunk)
                 elif self.forward_mode == "Hs DLL":
-                    # TODO: Forward data using Hs DLL shared memory here
-                    pass
+                    # 1. Start task if not already started
+                    if not self.hs_task_started:
+                        while self.running:
+                            nRet = hs_dll.StartSendRipTask_Rip()
+                            if nRet == 0:
+                                self.hs_task_started = True
+                                self._log("Hs DLL Send Task started")
+                                break
+                            else:
+                                hs_dll.StopSendRipTask_Rip()
+                                time.sleep(0.5)
+                    
+                    # 2. Check buffer and send data
+                    if self.hs_task_started:
+                        data_len = len(chunk)
+                        # Wait until buffer has enough space
+                        while self.running and not hs_dll.IsCanSendData(data_len):
+                            time.sleep(0.05)
+                        
+                        if self.running:
+                            # send
+                            nRet = hs_dll.SendDataAutoPrintPort_Rip(chunk, data_len)
+                            if nRet != 0:
+                                if self.running:
+                                    self.stop(f"SendDataAutoPrintPort_Rip failed with code {nRet}")
+                            
+                            self.sent_task_size += data_len
+
+                            # Verify that the total written size matches our expectation
+                            all_write_size = hs_dll.GetMemMapAllWriteSize()
+                            if all_write_size != self.sent_task_size:
+                                # If there's a mismatch, it indicates data may not be fully committed or out of sync
+                                self.stop(f"Warning: DLL write size mismatch! DLL reports {all_write_size}, local counter {self.sent_task_size}", level="warning")
 
                 self.forward_queue.task_done()
             except queue.Empty:
@@ -323,8 +366,14 @@ class Printer(object):
                 success = False
 
         if self.forward_mode == "Hs DLL":
-            # TODO: Cleanup Hs DLL shared memory here
-            pass
+            if self.hs_task_started:
+                hs_dll.StopSendRipTask_Rip()
+                self.hs_task_started = False
+            
+            if self.hs_dll_opened:
+                hs_dll.CloseAutoPrintPort_Rip()
+                self.hs_dll_opened = False
+            self._log("Shared memory (Hs DLL) resources released")
         
         self._log("Driver service stopped completely")
         return success

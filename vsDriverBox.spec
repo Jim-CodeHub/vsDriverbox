@@ -4,9 +4,9 @@ block_cipher = None
 
 # Define data files to include
 added_files = [
-    ('src/icon/*.png', 'src/icon'),
     ('src/icon/*.ico', 'src/icon'),
     ('drivers/camera/DLL/*.dll', 'drivers/camera/DLL'),
+    ('drivers/printer/DLL/*.dll', 'drivers/printer/DLL'),
 ]
 
 a = Analysis(

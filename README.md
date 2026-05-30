@@ -48,6 +48,8 @@ The project provides a one-key build script `build.bat`:
 
 v1.02 : 修改配置文件默认目录到%APPDATA%，增加stitch监控日志
 v1.03 : 解决高频转发导致打印机驱动崩溃问题，改为8M发一次解决
+v1.03_mp : 改为多进程方式，避免printer高频转发时，因GIL的存在导致Camera线程问题
+v1.10 : 自v1.1x版本起加入DLL转发打印方式
 
 ---
 © 2026 Jim. All Rights Reserved.

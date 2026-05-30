@@ -25,7 +25,7 @@ class ConfigUI(object):
             self.root = tk.Toplevel(root)
             
         self.root.title("参数设置")
-        self.root.geometry("1100x580")
+        self.root.geometry("1100x700")
         self.root.resizable(True, True)
         
         self.entries = {}
@@ -65,6 +65,9 @@ class ConfigUI(object):
         print_frame.grid(row=0, column=0, sticky=tk.NSEW, pady=2)
 
         self._add_combobox(print_frame, "转发数据方式:", ["TCP/IP", "Hs DLL"], 0, key="forward_mode")
+        # Bind event to forward_mode combobox
+        self.entries["forward_mode"].bind("<<ComboboxSelected>>", self._update_forward_target_state)
+
         self._add_entry(print_frame, "数据监听地址:", "127.0.0.1", 1, key="data_listen_addr")
         self._add_entry(print_frame, "数据监听端口:", "9111", 2, key="data_listen_port", vcmd=self.v_int)
         self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 3, key="forward_target_addr")
@@ -300,6 +303,7 @@ class ConfigUI(object):
                         widget.insert(0, str(value))
             
             messagebox.showinfo("成功", "配置加载成功，请点击“确定”以应用更改。")
+            self._update_forward_target_state()
         except Exception as e:
             messagebox.showerror("错误", f"加载配置失败：\n{str(e)}")
 
@@ -319,6 +323,17 @@ class ConfigUI(object):
                 else:
                     widget.delete(0, tk.END)
                     widget.insert(0, str(value))
+        self._update_forward_target_state()
+
+    def _update_forward_target_state(self, event=None):
+        """Update the state of forward target fields based on forward mode"""
+        mode = self.entries["forward_mode"].get()
+        state = "normal" if mode == "TCP/IP" else "disabled"
+        
+        target_keys = ["forward_target_addr", "forward_target_port", "forward_target_delay"]
+        for key in target_keys:
+            if key in self.entries:
+                self.entries[key].config(state=state)
 
     def show(self):
         """Display configuration window

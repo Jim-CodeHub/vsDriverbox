@@ -26,7 +26,7 @@ from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.3_mp"
+APP_VERSION = "1.0.4"
 
 # Global states
 is_started = False
@@ -335,6 +335,10 @@ def on_image_stitch(icon, item):
                         status_cb=on_camera_status_change
                     )
                     temp_instance = True
+                
+                # Ensure config/yaml is loaded even if system is not "started"
+                # This fixes stitching failure due to missing calibration parameters
+                cam.load_config()
                 
                 # Determine target JSON
                 target_json = "LocalImageInfos.json"

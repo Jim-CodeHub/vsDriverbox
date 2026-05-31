@@ -5,6 +5,7 @@ import threading
 import queue
 import traceback
 import sys
+import time
 
 class ProcessProxy:
     """
@@ -111,16 +112,27 @@ class ProcessProxy:
             return False, "Process is not running"
             
         self._cmd_queue.put((name, args, kwargs))
-        try:
-            # Wait for result with a timeout
-            msg = self._res_queue.get(timeout=10.0)
-            msg_type, method_name, result = msg
-            if msg_type == 'result' and method_name == name:
-                return result
-            elif msg_type == 'error':
-                return False, result
-        except queue.Empty:
-            return False, f"Method {name} timed out"
+        
+        # Wait for the specific result, skipping any leftover results from async calls
+        start_time = time.time()
+        timeout = 10.0
+        while True:
+            remaining = timeout - (time.time() - start_time)
+            if remaining <= 0:
+                break
+            try:
+                msg = self._res_queue.get(timeout=remaining)
+                msg_type, method_name, result = msg
+                
+                if msg_type == 'result' and method_name == name:
+                    return result
+                elif msg_type == 'error' and method_name == name:
+                    return False, result
+                # If it's a result for a different method, it's likely from an async call, ignore and continue
+            except queue.Empty:
+                break
+                
+        return False, f"Method {name} timed out"
 
     def start(self):
         """ Forward start() call. """

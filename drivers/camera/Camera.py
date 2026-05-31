@@ -274,6 +274,13 @@ class Camera(object):
             self.stop(err_msg)
             return False, err_msg
 
+    def load_config(self):
+        """Load calibration configuration from YAML file.
+        
+        :return: True if loaded successfully, False otherwise
+        """
+        return self.__stitch.load_calib_yaml()
+
     def stop(self, reason=None):
         """Stop camera: Stop acquisition, destroy stream, disconnect, and close device.
 
@@ -317,7 +324,7 @@ class Camera(object):
 
         self.__light.set_switch(False)
         self._log("Camera driver service stopped completely")
-        return success
+        return success, None
 
     def connect(self):
         """Connect to data server

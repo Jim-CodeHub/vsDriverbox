@@ -52,7 +52,7 @@ def IsCanSendData(size):
     return lib.IsCanSendData(size)
 
 # int SendDataAutoPrintPort_Rip(unsigned char *p, uint64_t size)
-lib.SendDataAutoPrintPort_Rip.argtypes = [c_void_p, c_uint64]
+lib.SendDataAutoPrintPort_Rip.argtypes = [c_char_p, c_uint64]
 lib.SendDataAutoPrintPort_Rip.restype = c_int
 
 def SendDataAutoPrintPort_Rip(p, size):
@@ -62,7 +62,9 @@ def SendDataAutoPrintPort_Rip(p, size):
     size : number of bytes to send
     Returns 0 on success, negative on error.
     """
-
+    if isinstance(p, bytearray):
+        # bytearray must be converted to a compatible ctypes type
+        p = (c_char * len(p)).from_buffer(p)
     return lib.SendDataAutoPrintPort_Rip(p, size)
 
 # uint64_t GetMemMapAllWriteSize(void)

@@ -214,7 +214,8 @@ class Printer(object):
                         remaining_size = expected_size - self.HEADER_BYTE_SIZE
 
                         if self.index == 1:
-                            self.forward_queue.put(self._set_header(header, self.print_length))
+                            # Ensure the header is sent as bytes to avoid DLL type mismatch issues
+                            self.forward_queue.put(bytes(self._set_header(header, self.print_length)))
 
                         local_buffer = bytearray()
                         while remaining_size > 0 and self.running:

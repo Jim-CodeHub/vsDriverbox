@@ -349,9 +349,10 @@ def on_image_stitch(icon, item):
                 stitched_img_np = cam.stitch_from_json(path, target_json)
                 
                 if stitched_img_np is not None:
-                    # Save the result
+                    # Save the result with correct DPI
                     save_path = os.path.join(path, "stitched_result.tif")
-                    Image.fromarray(stitched_img_np).save(save_path)
+                    dpi_val = cam.get_dpi()
+                    Image.fromarray(stitched_img_np).save(save_path, dpi=(dpi_val, dpi_val))
                     messagebox.showinfo("拼接成功", f"图像拼接完成，已保存至：\n{save_path}", parent=root)
                     logger.info(f"Image stitching completed and saved to {save_path}")
                 else:

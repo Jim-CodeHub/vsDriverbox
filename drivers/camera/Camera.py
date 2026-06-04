@@ -208,6 +208,10 @@ class Camera(object):
         except Exception as e:
             self._log(f"White image generation exception: {str(e)}")
 
+    def get_dpi(self):
+        """Get current image DPI setting"""
+        return self.__Image_DPI
+
     def stitch_from_json(self, file_path:str, file_name:str= "LocalImageInfos.json") -> np.ndarray:
         """ Stitching images from JSON file (Wrapper)
 

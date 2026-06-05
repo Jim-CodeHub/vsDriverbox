@@ -9,12 +9,13 @@
     Note        :
 """
 
-import ctypes, os, json, yaml, cv2, threading, socket, struct, sys, queue, time, serial, re
+import ctypes, os, json, cv2, threading, socket, struct, sys, queue, time, serial, re
 import serial.tools.list_ports
 from datetime import datetime
 import numpy as np
 import drivers.camera.IKapC as IKapC
 import drivers.camera.IKapCDef as IKapCDef
+import drivers.camera.Charuco as Charuco
 from numpy import ndarray
 from dataclasses import dataclass
 from PIL import Image
@@ -928,92 +929,40 @@ class Camera(object):
 
         def load_calib_yaml(self) -> bool:
             if self.__YamlPath and os.path.exists(self.__YamlPath):
-                with open(self.__YamlPath, 'r', encoding='utf-8') as f:
-                    self.__params = yaml.safe_load(f)
+                try:
+                    # Only use the new Charuco module
+                    self.__params = Charuco.load_calibration_yaml(self.__YamlPath)
                     return True
+                except Exception as e:
+                    return False
 
             return False
 
         @staticmethod
-        def calibration(img_bgr, params):
-            """Read YAML configuration and correct image
+        def calibration(img, params):
+            """Rectify image using Charuco calibration parameters
 
-            :param img_bgr: Original image (BGR)
-            :param params: Calibration parameters
-            :return: PIL.Image object (RGB format)
-            :raises: ValueError, KeyError
-            :note::
+            :param img: numpy array image
+            :param params: LineScanPlanarCalibration object
+            :return: numpy.ndarray (Grayscale)
+            :raises: 
+            :note:: Only supports new Charuco calibration
             """
 
-            # 2. Read image
-            if img_bgr is None:
-                raise ValueError("Cannot read image, please check format")
+            opts = Charuco.RectificationOptions(
+                orientation="raw",
+                interpolation="cubic",
+                chunk_rows=256,
+                clip_map_to_image=True,
+                output_dpi=int(params.output_dpi)
+            )
 
-            h, w = img_bgr.shape[:2]
-
-            # 3. Check if calibration is enabled
-            if not params or not params.get('enable', False):
-                return cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-
-            # 4. Extract parameters and convert to numpy arrays
-            try:
-                mtx1 = np.array(params['mtx1'])
-                dist1 = np.array(params['dist1'])
-                mode = params.get('mode', 'resize')
-            except KeyError as e:
-                raise KeyError(f"Missing necessary parameters in YAML file: {e}")
-
-            # 5. Step 1: Remove lens distortion (Undistort)
-            img_undistort = cv2.undistort(img_bgr, mtx1, dist1, None, mtx1)
-
-            # 6. Step 2: Geometric transformation based on mode
-            final_img = None
-            if mode == 'resize':
-                final_img = img_undistort
-            elif mode == 'warp':
-                # --- Warp mode (Perspective transform) ---
-                if params['H_board'] is None:
-                    final_img = img_undistort
-                else:
-                    H = np.array(params['H_board'])
-
-                    # [Key Step] Automatically calculate boundaries after transformation
-                    # Direct warpPerspective may cause image disappearance due to negative coordinates
-                    # 1. Get original four corners
-                    corners = np.array([
-                        [0, 0],
-                        [w, 0],
-                        [w, h],
-                        [0, h]
-                    ], dtype=np.float32).reshape(-1, 1, 2)
-
-                    # 2. Calculate transformed corner positions
-                    new_corners = cv2.perspectiveTransform(corners, H)
-
-                    # 3. Get bounding box of transformed image (x_min, x_max, y_min, y_max)
-                    [x_min, y_min] = np.int32(new_corners.min(axis=0).ravel() - 0.5)
-                    [x_max, y_max] = np.int32(new_corners.max(axis=0).ravel() + 0.5)
-
-                    # 4. Calculate translation matrix to move image back to positive coordinate area
-                    translation_dist = [-x_min, -y_min]
-                    H_translation = np.array([
-                        [1, 0, translation_dist[0]],
-                        [0, 1, translation_dist[1]],
-                        [0, 0, 1]
-                    ])
-
-                    # 5. Combine transformation matrices
-                    full_H = H_translation.dot(H)
-
-                    # 6. Calculate new image size
-                    new_w = x_max - x_min
-                    new_h = y_max - y_min
-
-                    # Execute perspective transform
-                    final_img = cv2.warpPerspective(img_undistort, full_H, (new_w, new_h))
-            else:
-                final_img = img_undistort
-            return final_img
+            result = Charuco.rectify_image_array(img, params, options=opts)
+            out = result.corrected_image
+                
+            out = cv2.rotate(out, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                
+            return Charuco.ensure_grayscale(out)
 
         def _stitch_unit(self, image:np.ndarray, overlap:int, direction:bool, start_pos:int) -> ndarray:
             """ Stitching image to canvas
@@ -1080,6 +1029,8 @@ class Camera(object):
             :raises Exception on error
             :notes: The file is a List JSON and at least one image
             """
+
+            self.__StepCopy = 0
 
             with open(os.path.join(file_path, file_name), 'r', encoding='utf-8') as f:
                 file = json.load(f)

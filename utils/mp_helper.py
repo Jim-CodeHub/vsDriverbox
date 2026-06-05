@@ -106,7 +106,7 @@ class ProcessProxy:
             except Exception:
                 break
 
-    def _call_method_sync(self, name, *args, **kwargs):
+    def _call_method_sync(self, name, *args, timeout=10.0, **kwargs):
         """ Synchronously call a method in the child process and wait for result. """
         if not self._process.is_alive():
             return False, "Process is not running"
@@ -115,7 +115,6 @@ class ProcessProxy:
         
         # Wait for the specific result, skipping any leftover results from async calls
         start_time = time.time()
-        timeout = 10.0
         while True:
             remaining = timeout - (time.time() - start_time)
             if remaining <= 0:
@@ -159,6 +158,6 @@ class ProcessProxy:
 
     def __getattr__(self, name):
         """ Generic forwarder for any other methods. """
-        def wrapper(*args, **kwargs):
-            return self._call_method_sync(name, *args, **kwargs)
+        def wrapper(*args, timeout=10.0, **kwargs):
+            return self._call_method_sync(name, *args, timeout=timeout, **kwargs)
         return wrapper

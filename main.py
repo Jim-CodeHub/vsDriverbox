@@ -26,7 +26,7 @@ from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.0.5"
 
 # Global states
 is_started = False
@@ -346,15 +346,21 @@ def on_image_stitch(icon, item):
                     target_json = json_files[0]
                     
                 logger.info(f"Starting image stitching from {path} using {target_json}")
-                stitched_img_np = cam.stitch_from_json(path, target_json)
+                # Use a longer timeout (60s) for heavy stitching tasks
+                stitched_img_np = cam.stitch_from_json(path, target_json, timeout=60.0)
                 
-                if stitched_img_np is not None:
+                if isinstance(stitched_img_np, np.ndarray):
                     # Save the result with correct DPI
                     save_path = os.path.join(path, "stitched_result.tif")
                     dpi_val = cam.get_dpi()
                     Image.fromarray(stitched_img_np).save(save_path, dpi=(dpi_val, dpi_val))
                     messagebox.showinfo("拼接成功", f"图像拼接完成，已保存至：\n{save_path}", parent=root)
                     logger.info(f"Image stitching completed and saved to {save_path}")
+                elif isinstance(stitched_img_np, tuple) and not stitched_img_np[0]:
+                    # ProcessProxy error return
+                    error_detail = stitched_img_np[1]
+                    logger.error(f"Image stitching process error: {error_detail}")
+                    messagebox.showerror("拼接失败", f"拼接过程中发生进程错误：\n{error_detail}", parent=root)
                 else:
                     messagebox.showwarning("拼接失败", "拼接返回结果为空，请检查数据完整性", parent=root)
             finally:

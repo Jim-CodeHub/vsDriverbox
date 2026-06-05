@@ -17,6 +17,7 @@ import ctypes
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image
+import numpy as np
 from ui.config.config import ConfigUI
 from ui.config.cfgcxt import config_context
 from drivers.camera.Camera import Camera

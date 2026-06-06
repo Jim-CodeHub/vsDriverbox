@@ -1,6 +1,8 @@
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""线阵 ChArUco 快速校正（精简版）。对外接口：rectify_charuco_image()。"""
+"""线阵 ChArUco 快速校正（优化版）。对外接口：rectify_charuco_image()。
+优化点：linear 插值 + 全图一次性 remap，避免分块循环开销。"""
 
 from __future__ import annotations
 
@@ -249,7 +251,7 @@ def _build_chunk_remap_maps(
     rbf: Optional[RBFResidualModel],
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    生成分块 remap 用的 map_x / map_y (float32)。
+    生成 remap 用的 map_x / map_y (float32)。
 
     常见 swapped 标定下 map_x 只随列变化、map_y 只随行变化，可 1D 求值再广播。
     """
@@ -283,13 +285,13 @@ def _build_chunk_remap_maps(
     return map_x, map_y
 
 
-def remap_chunks(
+def _remap_full(
     image: np.ndarray,
     calib: Calibration,
-    chunk_rows: int = 256,
-    interpolation: str = "cubic",
+    interpolation: str = "linear",
     clip: bool = True,
 ) -> np.ndarray:
+    """全图一次性 remap，避免分块循环开销。"""
     ranges = _infer_ranges(image.shape, calib.source_x_model, calib.source_y_model)
     col_phys = _step_vec(ranges["sx0"], ranges["sx1"], calib.pixels_per_mm)
     row_phys = _step_vec(ranges["sy0"], ranges["sy1"], calib.pixels_per_mm)
@@ -297,13 +299,11 @@ def remap_chunks(
     sx, sy = calib.source_x_model, calib.source_y_model
     rbf = calib.residual_model
     interp = _INTERP[interpolation]
-    if rbf is not None and chunk_rows > 128:
-        chunk_rows = 128
 
     if image.ndim == 2:
-        output = np.zeros((out_h, out_w), dtype=image.dtype)
+        output = np.empty((out_h, out_w), dtype=image.dtype)
     else:
-        output = np.zeros((out_h, out_w, image.shape[2]), dtype=image.dtype)
+        output = np.empty((out_h, out_w, image.shape[2]), dtype=image.dtype)
     h, w = image.shape[:2]
 
     bx_from_col = sx.physical_col == "x_mm"
@@ -311,24 +311,23 @@ def remap_chunks(
     map_x_col = sx(col_phys).astype(np.float32)[np.newaxis, :] if sx_uses_col else None
     w_max, h_max = float(w - 1), float(h - 1)
 
-    for y0 in range(0, out_h, chunk_rows):
-        y1 = min(y0 + chunk_rows, out_h)
-        map_x, map_y = _build_chunk_remap_maps(
-            sx, sy, col_phys, row_phys[y0:y1], bx_from_col, map_x_col, rbf,
-        )
-        if clip:
-            np.clip(map_x, 0.0, w_max, out=map_x)
-            np.clip(map_y, 0.0, h_max, out=map_y)
-        output[y0:y1] = cv2.remap(
-            image, map_x, map_y, interp, borderMode=cv2.BORDER_REPLICATE,
-        )
+    # 一次性构建全图 map
+    map_x, map_y = _build_chunk_remap_maps(
+        sx, sy, col_phys, row_phys, bx_from_col, map_x_col, rbf,
+    )
+    if clip:
+        np.clip(map_x, 0.0, w_max, out=map_x)
+        np.clip(map_y, 0.0, h_max, out=map_y)
+    output = cv2.remap(
+        image, map_x, map_y, interp, borderMode=cv2.BORDER_REPLICATE,
+    )
     return output
 
 
 def rectify_charuco_image(
     yaml_path: PathLike,
     image: Union[PathLike, np.ndarray],
-    interpolation: str = "cubic",
+    interpolation: str = "linear",
     chunk_rows: int = 256,
     rotate_ccw_90: bool = True,
 ) -> np.ndarray:
@@ -338,18 +337,18 @@ def rectify_charuco_image(
     参数:
         yaml_path: 标定 YAML 路径
         image: 图像路径或 ndarray
-        interpolation: nearest / linear / cubic / lanczos
-        chunk_rows: 分块行数
+        interpolation: nearest / linear / cubic / lanczos (默认 linear，速度快)
+        chunk_rows: 保留参数（优化版不使用分块，兼容接口）
         rotate_ccw_90: 是否逆时针旋转 90°（与 GUI 标定一致）
     """
     calib = Calibration.from_yaml(yaml_path)
     img = load_image(image) if isinstance(image, (str, Path)) else np.asarray(image)
-    out = remap_chunks(img, calib, chunk_rows=chunk_rows, interpolation=interpolation)
+    out = _remap_full(img, calib, interpolation=interpolation)
     if rotate_ccw_90:
         out = cv2.rotate(out, cv2.ROTATE_90_CLOCKWISE)
     return to_grayscale(out)
 
 def calibration(img, params):
-    out = remap_chunks(img, params, interpolation="cubic", chunk_rows=256)
+    out = _remap_full(img, params, interpolation="linear")
     out = cv2.rotate(out, cv2.ROTATE_90_CLOCKWISE)
     return to_grayscale(out)

@@ -25,7 +25,7 @@ class ConfigUI(object):
             self.root = tk.Toplevel(root)
             
         self.root.title("参数设置")
-        self.root.geometry("1100x580")
+        self.root.geometry("1100x800")
         self.root.resizable(True, True)
         
         self.entries = {}
@@ -45,8 +45,25 @@ class ConfigUI(object):
         
     def _create_widgets(self):
         # Main container with three uniform columns
+        # Use pack for the bottom buttons and a canvas with scrollbar for the middle content
+        # or just pack the buttons at the bottom first to ensure visibility.
+        
+        # 1. Bottom Buttons Container (Pack first at bottom)
+        btn_container = ttk.Frame(self.root, padding="10")
+        btn_container.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Action Buttons (Right-aligned)
+        ttk.Button(btn_container, text="取消", command=self.root.destroy).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_container, text="确定", command=self.save_config).pack(side=tk.RIGHT, padx=5)
+        
+        ttk.Frame(btn_container, width=60).pack(side=tk.RIGHT)
+        
+        ttk.Button(btn_container, text="加载配置", command=self.import_config).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_container, text="存储配置", command=self.export_config).pack(side=tk.RIGHT, padx=5)
+
+        # 2. Main content container
         main_container = ttk.Frame(self.root, padding="10")
-        main_container.pack(fill=tk.BOTH, expand=True)
+        main_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         
         # Configure uniform columns
         for i in range(3):
@@ -66,12 +83,15 @@ class ConfigUI(object):
         
         self._add_entry(print_frame, "数据监听地址:", "127.0.0.1", 0, key="data_listen_addr")
         self._add_entry(print_frame, "数据监听端口:", "9111", 1, key="data_listen_port", vcmd=self.v_int)
-        self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 2, key="forward_target_addr")
-        self._add_entry(print_frame, "转发目标端口:", "9100", 3, key="forward_target_port", vcmd=self.v_int)
-        self._add_entry(print_frame, "打印长度设置:", "100000", 4, unit="mm", key="print_length", vcmd=self.v_int)
-        self._add_entry(print_frame, "打印宽度设置:", "1800", 5, unit="mm", key="print_width", vcmd=self.v_int)
-        self._add_entry(print_frame, "缓冲字节设置:", "10240", 6, unit="KB", key="buffer_size", vcmd=self.v_int)
-        self._add_entry(print_frame, "转发目标延迟:", "500", 7, unit="ms", key="forward_target_delay", vcmd=self.v_int)
+        self._add_dropdown(print_frame, "转发目标方式:", ["TCP/IP", "HS DLL"], 2, key="forward_mode", callback=self._on_forward_mode_change)
+        
+        self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 3, key="forward_target_addr")
+        self._add_entry(print_frame, "转发目标端口:", "9100", 4, key="forward_target_port", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标延迟:", "500", 5, unit="ms", key="forward_target_delay", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标超时:", "5", 6, unit="s", key="forward_target_timeout", vcmd=self.v_int)
+        self._add_entry(print_frame, "打印长度设置:", "100000", 7, unit="mm", key="print_length", vcmd=self.v_int)
+        self._add_entry(print_frame, "打印宽度设置:", "1800", 8, unit="mm", key="print_width", vcmd=self.v_int)
+        self._add_entry(print_frame, "缓冲字节设置:", "10240", 9, unit="KB", key="buffer_size", vcmd=self.v_int)
         
         # 2. Log Configuration
         log_frame = ttk.LabelFrame(col0, text="日志配置", padding="5")
@@ -137,20 +157,6 @@ class ConfigUI(object):
         self._add_entry(light_frame, "通讯超时设置:", "1000", 2, unit="ms", key="light_comm_timeout", vcmd=self.v_int)
         self._add_entry(light_frame, "灯光亮度设置:", "100", 3, key="light_brightness", vcmd=self.v_int)
         
-        # --- Bottom Buttons ---
-        btn_container = ttk.Frame(self.root, padding="10")
-        btn_container.pack(fill=tk.X)
-        
-        # Action Buttons (Right-aligned, from right to left: Cancel, OK, [Spacer], Load, Save)
-        ttk.Button(btn_container, text="取消", command=self.root.destroy).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(btn_container, text="确定", command=self.save_config).pack(side=tk.RIGHT, padx=5)
-        
-        # Spacer to pull them apart
-        ttk.Frame(btn_container, width=60).pack(side=tk.RIGHT)
-        
-        ttk.Button(btn_container, text="加载配置", command=self.import_config).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(btn_container, text="存储配置", command=self.export_config).pack(side=tk.RIGHT, padx=5)
-        
         # Load initial data
         self.load_ui_data()
 
@@ -172,6 +178,30 @@ class ConfigUI(object):
             
         if unit:
             ttk.Label(parent, text=unit).grid(row=row, column=2, sticky=tk.W)
+
+    def _add_dropdown(self, parent, label_text, options, row, key=None, callback=None):
+        """Helper to add label + combobox to a grid"""
+        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky=tk.W, pady=2)
+        
+        combo = ttk.Combobox(parent, values=options, width=23, state="readonly")
+        combo.current(0)
+        combo.grid(row=row, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        if key:
+            self.entries[key] = combo
+            
+        if callback:
+            combo.bind("<<ComboboxSelected>>", callback)
+
+    def _on_forward_mode_change(self, event):
+        """Handle forward mode change to enable/disable address/port entries"""
+        mode = self.entries["forward_mode"].get()
+        if mode == "HS DLL":
+            self.entries["forward_target_addr"].config(state="disabled")
+            self.entries["forward_target_port"].config(state="disabled")
+        else:
+            self.entries["forward_target_addr"].config(state="normal")
+            self.entries["forward_target_port"].config(state="normal")
 
     def _validate_int(self, P):
         """Validate integer input (allow empty or digits)"""
@@ -296,8 +326,14 @@ class ConfigUI(object):
         """
         for key, value in config_context.config.items():
             if key in self.entries:
-                self.entries[key].delete(0, tk.END)
-                self.entries[key].insert(0, value)
+                if isinstance(self.entries[key], ttk.Combobox):
+                    self.entries[key].set(value)
+                    # Trigger callback manually for dropdowns to update state
+                    if key == "forward_mode":
+                        self._on_forward_mode_change(None)
+                else:
+                    self.entries[key].delete(0, tk.END)
+                    self.entries[key].insert(0, value)
 
     def show(self):
         """Display configuration window

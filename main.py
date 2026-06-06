@@ -197,10 +197,13 @@ def start_system(is_capture=False):
             Printer,
             listen_ip=config.get('data_listen_addr', "127.0.0.1"),
             listen_port=config.get('data_listen_port', 9111),
+            forward_mode=config.get('forward_mode', "TCP/IP"),
             target_ip=config.get('forward_target_addr', "127.0.0.1"),
             target_port=config.get('forward_target_port', 9100),
             print_length=config.get('print_length', 100000),
-            buffer_size=config.get('buffer_size', 10240), target_delay=config.get('forward_target_delay', 500),
+            buffer_size=config.get('buffer_size', 10240), 
+            target_delay=config.get('forward_target_delay', 500),
+            target_timeout=config.get('forward_target_timeout', 5),
             log_cb=logger.info,
             fatal_error_cb=on_fatal_error
         )

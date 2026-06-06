@@ -27,7 +27,7 @@ from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.5_Bate_0.1"
+APP_VERSION = "1.0.5_Beta_0.1"
 
 # Global states
 is_started = False

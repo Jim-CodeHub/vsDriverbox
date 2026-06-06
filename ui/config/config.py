@@ -129,8 +129,14 @@ class ConfigUI(object):
         self._add_entry(stitch_frame, "图像拼接偏移:", "629", 2, unit="pix", key="img_stitch_offset", vcmd=self.v_int)
         self._add_entry(stitch_frame, "画布开始位置:", "7906", 3, key="canvas_start_pos", vcmd=self.v_int)
         self._add_entry(stitch_frame, "画布结束位置:", "21259", 4, key="canvas_end_pos", vcmd=self.v_int)
+        self.entries["canvas_end_pos"].config(state="readonly")
+        
         self._add_entry(stitch_frame, "重叠偏移像素:", "500", 5, key="overlap_offset_pix", vcmd=self.v_int)
         self._add_entry(stitch_frame, "DPI:", "300", 6, key="dpi", vcmd=self.v_int)
+        
+        # Add trace-like behavior for real-time update
+        self.entries["print_width"].bind("<KeyRelease>", lambda e: self._update_canvas_end_pos())
+        self.entries["dpi"].bind("<KeyRelease>", lambda e: self._update_canvas_end_pos())
         
         # --- Column 2: Board & Light ---
         col2 = ttk.Frame(main_container)
@@ -247,6 +253,31 @@ class ConfigUI(object):
             status_label = ttk.Label(parent, text="未选择", font=("Microsoft YaHei", 7), foreground="gray")
             status_label.grid(row=row+1, column=1, columnspan=2, sticky=tk.W, padx=3)
 
+    def _update_canvas_end_pos(self):
+        """Update canvas_end_pos based on print_width and dpi: width * dpi / 25.4"""
+        try:
+            width_str = self.entries["print_width"].get()
+            dpi_str = self.entries["dpi"].get()
+            
+            if not width_str or not dpi_str:
+                return
+                
+            width = float(width_str)
+            dpi = float(dpi_str)
+            
+            # Formula: print_width / 25.4 * dpi (rounded to integer)
+            # User mentioned "打印宽度x25.4/300", which matches pixel calculation if 300 is DPI
+            # and they meant "divide by (25.4/DPI)" or "multiply by (DPI/25.4)"
+            end_pos = int(width * dpi / 25.4)
+            
+            # Update the readonly entry
+            self.entries["canvas_end_pos"].config(state="normal")
+            self.entries["canvas_end_pos"].delete(0, tk.END)
+            self.entries["canvas_end_pos"].insert(0, str(end_pos))
+            self.entries["canvas_end_pos"].config(state="readonly")
+        except (ValueError, ZeroDivisionError):
+            pass
+
     def save_config(self):
         """Collect UI data and save to configuration file
 
@@ -313,6 +344,7 @@ class ConfigUI(object):
                     self.entries[key].insert(0, str(value))
             
             messagebox.showinfo("成功", "配置加载成功，请点击“确定”以应用更改。")
+            self._update_canvas_end_pos()
         except Exception as e:
             messagebox.showerror("错误", f"加载配置失败：\n{str(e)}")
 
@@ -334,6 +366,8 @@ class ConfigUI(object):
                 else:
                     self.entries[key].delete(0, tk.END)
                     self.entries[key].insert(0, value)
+        
+        self._update_canvas_end_pos()
 
     def show(self):
         """Display configuration window

@@ -25,7 +25,7 @@ class ConfigUI(object):
             self.root = tk.Toplevel(root)
             
         self.root.title("参数设置")
-        self.root.geometry("1100x800")
+        self.root.geometry("1100x730")
         self.root.resizable(True, True)
         
         self.entries = {}

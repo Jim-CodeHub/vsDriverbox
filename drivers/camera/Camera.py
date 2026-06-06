@@ -930,8 +930,8 @@ class Camera(object):
         def load_calib_yaml(self) -> bool:
             if self.__YamlPath and os.path.exists(self.__YamlPath):
                 try:
-                    # Only use the new Charuco module
-                    self.__params = Charuco.load_calibration_yaml(self.__YamlPath)
+                    # Use the new Charuco module Calibration model
+                    self.__params = Charuco.Calibration.from_yaml(self.__YamlPath)
                     return True
                 except Exception as e:
                     return False
@@ -943,26 +943,12 @@ class Camera(object):
             """Rectify image using Charuco calibration parameters
 
             :param img: numpy array image
-            :param params: LineScanPlanarCalibration object
+            :param params: Charuco.Calibration object
             :return: numpy.ndarray (Grayscale)
             :raises: 
             :note:: Only supports new Charuco calibration
             """
-
-            opts = Charuco.RectificationOptions(
-                orientation="raw",
-                interpolation="cubic",
-                chunk_rows=256,
-                clip_map_to_image=True,
-                output_dpi=int(params.output_dpi)
-            )
-
-            result = Charuco.rectify_image_array(img, params, options=opts)
-            out = result.corrected_image
-                
-            out = cv2.rotate(out, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                
-            return Charuco.ensure_grayscale(out)
+            return Charuco.calibration(img, params)
 
         def _stitch_unit(self, image:np.ndarray, overlap:int, direction:bool, start_pos:int) -> ndarray:
             """ Stitching image to canvas

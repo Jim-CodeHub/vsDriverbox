@@ -87,6 +87,7 @@ class Camera(object):
         self.ReceiveBuff = ctypes.c_void_p(None)
         self.__isStarted = False
         self.__frameScnt = 0
+        self.__frameOcnt = 0
         self.__frameEcnt = 0
         self.__frame_inx = 0;
         self.__JSON_Gen_ = None
@@ -119,7 +120,7 @@ class Camera(object):
 
         self.__StTQ_inf = queue.Queue()
         self.__StTQ_img = queue.Queue()
-        self.__stitch = Camera.ImageStitch(x_base_L=int(stitch_left_ref), x_base_R=int(stitch_right_ref), x_invert=int(img_stitch_offset), canvas_start=int(canvas_start_pos), canvas_width=self.__canvas_width, DPI=self.__Image_DPI, hold_pix=int(overlap_offset_pix), YamlPath=calib_file)
+        self.__stitch = Camera.ImageStitch(x_base_L=int(stitch_left_ref), x_base_R=int(stitch_right_ref), x_invert=int(img_stitch_offset), canvas_start=int(canvas_start_pos), canvas_width=self.__canvas_width, DPI=self.__Image_DPI, hold_pix=int(overlap_offset_pix), YamlPath=calib_file, log_cb=self.log_cb)
         threading.Thread(target=self.__St_Thread, daemon=True).start()
         threading.Thread(target=self.__Dt_Thread, daemon=True).start()
 
@@ -593,6 +594,7 @@ class Camera(object):
         :raises: None
         """
         self.__frameEcnt = 0
+        self.__frameOcnt = 0
         self.__frameScnt = 0
         
         while not self.__MbTQueue.empty():
@@ -760,7 +762,12 @@ class Camera(object):
 
                 image = np.frombuffer(ctypes.string_at(self.ReceiveBuff, bufferSize), dtype=np.uint8).reshape((bufferInfo.ImageHeight, bufferInfo.ImageWidth)).copy()
 
+                self._log(f"Camera frame ended [{self.__frameOcnt}]")
+                self.__frameOcnt += 1
+
                 self.__StTQ_img.put(image)
+            else:
+                self.stop(f"Camera buffer status error: {str(bufferStatus)}")
 
         except Exception as e:
             self._log_error(f"Frame callback error: {str(e)}")
@@ -897,7 +904,7 @@ class Camera(object):
             Direction: bool
             MotionStartPoint: float
 
-        def __init__(self, x_base_L:int = 2461790, x_base_R:int = 29057700, x_invert:int = 629, canvas_start = 7906, canvas_width:int = 21259, DPI:int = 300, hold_pix:int=500, YamlPath=None) -> None:
+        def __init__(self, x_base_L:int = 2461790, x_base_R:int = 29057700, x_invert:int = 629, canvas_start = 7906, canvas_width:int = 21259, DPI:int = 300, hold_pix:int=500, YamlPath=None, log_cb=None) -> None:
             """ ImageStitch init
             :param x_base_L: X left base position
             :param x_base_R: X right base position
@@ -907,6 +914,7 @@ class Camera(object):
             :param DPI: image DPI
             :param hold_pix: Offset pixels upwards to avoid light source dimming area, Note: do not exceed overlap pixels
             :param YamlPath: YAML path for calib
+            :param log_cb: log callback
             :return:None
             :raises None
             :note : Yaml file SHALL BE loaded (by load_calib_yaml()) before any stitch function used
@@ -922,6 +930,7 @@ class Camera(object):
             self.__upOffset = hold_pix
 
             self.__YamlPath = YamlPath
+            self.__log_cb = log_cb
 
             self.__StepCopy = 0
 
@@ -997,7 +1006,12 @@ class Camera(object):
             :raises Exception on error
             :notes: This function automatically saves the step data from the previous stitching
             """
+            t_start = time.perf_counter()
             _image_ = Camera.ImageStitch.calibration(_image, self.__params) if Direction else Camera.ImageStitch.calibration(_image[::-1, ...], self.__params)
+            t_end = time.perf_counter()
+
+            if self.__log_cb:
+                self.__log_cb(f"Camera: Calibration cost: {(t_end - t_start) * 1000:.2f}ms")
             
             forward = round((Step - self.__StepCopy) / self.__K_Coef__)
 

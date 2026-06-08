@@ -25,7 +25,7 @@ class ConfigUI(object):
             self.root = tk.Toplevel(root)
             
         self.root.title("参数设置")
-        self.root.geometry("1100x730")
+        self.root.geometry("1100x780")
         self.root.resizable(True, True)
         
         self.entries = {}
@@ -81,17 +81,20 @@ class ConfigUI(object):
         print_frame = ttk.LabelFrame(col0, text="打印设置", padding="5")
         print_frame.grid(row=0, column=0, sticky=tk.NSEW, pady=2)
         
-        self._add_entry(print_frame, "数据监听地址:", "127.0.0.1", 0, key="data_listen_addr")
-        self._add_entry(print_frame, "数据监听端口:", "9111", 1, key="data_listen_port", vcmd=self.v_int)
-        self._add_dropdown(print_frame, "转发目标方式:", ["TCP/IP", "HS DLL"], 2, key="forward_mode", callback=self._on_forward_mode_change)
+        self._add_dropdown(print_frame, "数据监听方式:", ["TCP/IP", "热文件夹"], 0, key="listen_mode", callback=self._on_listen_mode_change)
+        self._add_entry(print_frame, "数据监听地址:", "127.0.0.1", 1, key="data_listen_addr")
+        self._add_entry(print_frame, "数据监听端口:", "9111", 2, key="data_listen_port", vcmd=self.v_int)
+        self._add_browse_entry(print_frame, "数据监听目录:", 3, show_status=False, key="data_listen_dir")
+
+        self._add_dropdown(print_frame, "转发目标方式:", ["TCP/IP", "HS DLL"], 4, key="forward_mode", callback=self._on_forward_mode_change)
         
-        self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 3, key="forward_target_addr")
-        self._add_entry(print_frame, "转发目标端口:", "9100", 4, key="forward_target_port", vcmd=self.v_int)
-        self._add_entry(print_frame, "转发目标延迟:", "500", 5, unit="ms", key="forward_target_delay", vcmd=self.v_int)
-        self._add_entry(print_frame, "转发目标超时:", "5", 6, unit="s", key="forward_target_timeout", vcmd=self.v_int)
-        self._add_entry(print_frame, "打印长度设置:", "100000", 7, unit="mm", key="print_length", vcmd=self.v_int)
-        self._add_entry(print_frame, "打印宽度设置:", "1800", 8, unit="mm", key="print_width", vcmd=self.v_int)
-        self._add_entry(print_frame, "缓冲字节设置:", "10240", 9, unit="KB", key="buffer_size", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 5, key="forward_target_addr")
+        self._add_entry(print_frame, "转发目标端口:", "9100", 6, key="forward_target_port", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标延迟:", "500", 7, unit="ms", key="forward_target_delay", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标超时:", "5", 8, unit="s", key="forward_target_timeout", vcmd=self.v_int)
+        self._add_entry(print_frame, "打印长度设置:", "100000", 9, unit="mm", key="print_length", vcmd=self.v_int)
+        self._add_entry(print_frame, "打印宽度设置:", "1800", 10, unit="mm", key="print_width", vcmd=self.v_int)
+        self._add_entry(print_frame, "缓冲字节设置:", "10240", 11, unit="KB", key="buffer_size", vcmd=self.v_int)
         
         # 2. Log Configuration
         log_frame = ttk.LabelFrame(col0, text="日志配置", padding="5")
@@ -208,6 +211,18 @@ class ConfigUI(object):
         else:
             self.entries["forward_target_addr"].config(state="normal")
             self.entries["forward_target_port"].config(state="normal")
+
+    def _on_listen_mode_change(self, event):
+        """Handle listen mode change to enable/disable address/port or directory entries"""
+        mode = self.entries["listen_mode"].get()
+        if mode == "热文件夹":
+            self.entries["data_listen_addr"].config(state="disabled")
+            self.entries["data_listen_port"].config(state="disabled")
+            self.entries["data_listen_dir"].config(state="normal")
+        else:
+            self.entries["data_listen_addr"].config(state="normal")
+            self.entries["data_listen_port"].config(state="normal")
+            self.entries["data_listen_dir"].config(state="disabled")
 
     def _validate_int(self, P):
         """Validate integer input (allow empty or digits)"""
@@ -363,6 +378,8 @@ class ConfigUI(object):
                     # Trigger callback manually for dropdowns to update state
                     if key == "forward_mode":
                         self._on_forward_mode_change(None)
+                    elif key == "listen_mode":
+                        self._on_listen_mode_change(None)
                 else:
                     self.entries[key].delete(0, tk.END)
                     self.entries[key].insert(0, value)

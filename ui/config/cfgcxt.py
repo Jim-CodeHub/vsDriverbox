@@ -19,8 +19,10 @@ class ConfigContext(object):
     def __init__(self):
         # Default configuration values to ensure consistency across environments
         self.config = {
+            "listen_mode": "TCP/IP",
             "data_listen_addr": "127.0.0.1",
             "data_listen_port": "9111",
+            "data_listen_dir": r"D:\vsDriverbox\hot",
             "forward_mode": "TCP/IP",
             "forward_target_addr": "127.0.0.1",
             "forward_target_port": "9100",

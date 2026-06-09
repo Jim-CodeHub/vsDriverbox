@@ -152,7 +152,7 @@ def create_camera_instance(fatal_error_cb=None, status_cb=None):
         capture_save_dir=config.get('capture_save_dir', r"D:\vsDriverbox\cap"),
         rip_send_dir=config.get('rip_send_dir', r"D:\vsDriverbox\rip"),
         cap_line_timeout=config.get('cap_line_timeout', 5000),
-        cap_frame_timeout=config.get('cap_frame_timeout', 5000),
+        cap_frame_timeout=config.get('cap_frame_timeout', 0),
         dpi=config.get('dpi', 300),
         stitch_left_ref=config.get('stitch_left_ref', 2461790),
         stitch_right_ref=config.get('stitch_right_ref', 29057700),

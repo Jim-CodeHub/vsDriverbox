@@ -124,7 +124,7 @@ class ConfigUI(object):
         self._add_browse_entry(cam_settings_frame, "采集存储目录:", 6, default_val=r"D:\vsDriverbox\cap", key="capture_save_dir")
         self._add_browse_entry(cam_settings_frame, "白图发送目录:", 7, default_val=r"D:\vsDriverbox\rip", show_status=False, key="rip_send_dir")
         self._add_entry(cam_settings_frame, "采集行间超时:", "5000", 8, unit="ms", key="cap_line_timeout", vcmd=self.v_int)
-        self._add_entry(cam_settings_frame, "采集帧间超时:", "5000", 9, unit="ms", key="cap_frame_timeout", vcmd=self.v_int)
+        self._add_entry(cam_settings_frame, "采集帧间超时:", "0", 9, unit="ms", key="cap_frame_timeout", vcmd=self.v_int)
         
         # 3.2 Stitching Settings
         stitch_frame = ttk.LabelFrame(col1, text="拼接设置", padding="5")

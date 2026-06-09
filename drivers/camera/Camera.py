@@ -35,7 +35,7 @@ class Camera(object):
                  capture_save_dir=r"D:\vsDriverbox\cap",
                  rip_send_dir=r"D:\vsDriverbox\rip",
                  cap_line_timeout=5000,
-                 cap_frame_timeout=5000,
+                 cap_frame_timeout=0,
                  dpi=300,
                  # Stitching Settings
                  stitch_left_ref=2461790,
@@ -80,7 +80,7 @@ class Camera(object):
         self.__cap_path = capture_save_dir
         self.__cap_white_path = rip_send_dir
         self.__cap_line_timeout = int(cap_line_timeout)
-        self.__cap_frame_timeout = int(cap_frame_timeout)
+        self.__cap_frame_timeout = int(cap_frame_timeout) if int(cap_frame_timeout) != 0 else -1
         self.__Image_DPI = int(dpi)
         
         # 2. Stitching Settings

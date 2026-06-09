@@ -43,7 +43,7 @@ class ConfigContext(object):
             "capture_save_dir": r"D:\vsDriverbox\cap",
             "rip_send_dir": r"D:\vsDriverbox\rip",
             "cap_line_timeout": "5000",
-            "cap_frame_timeout": "5000",
+            "cap_frame_timeout": "0",
             "board_comm_addr": "192.168.1.99",
             "board_comm_port": "502",
             "board_comm_timeout": "3000",

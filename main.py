@@ -27,7 +27,7 @@ from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.5_Beta_0.3"
+APP_VERSION = "1.0.5_Beta_0.4"
 
 # Global states
 is_started = False
@@ -195,8 +195,11 @@ def start_system(is_capture=False):
         # 2. Instantiate Printer
         printer_instance = ProcessProxy(
             Printer,
+            listen_mode=config.get('listen_mode', "TCP/IP"),
             listen_ip=config.get('data_listen_addr', "127.0.0.1"),
             listen_port=config.get('data_listen_port', 9111),
+            listen_dir=config.get('data_listen_dir', ""),
+            poll_interval=config.get('hot_poll_interval', 100),
             forward_mode=config.get('forward_mode', "TCP/IP"),
             target_ip=config.get('forward_target_addr', "127.0.0.1"),
             target_port=config.get('forward_target_port', 9100),

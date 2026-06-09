@@ -25,7 +25,7 @@ class ConfigUI(object):
             self.root = tk.Toplevel(root)
             
         self.root.title("参数设置")
-        self.root.geometry("1100x780")
+        self.root.geometry("1100x850")
         self.root.resizable(True, True)
         
         self.entries = {}
@@ -85,16 +85,17 @@ class ConfigUI(object):
         self._add_entry(print_frame, "数据监听地址:", "127.0.0.1", 1, key="data_listen_addr")
         self._add_entry(print_frame, "数据监听端口:", "9111", 2, key="data_listen_port", vcmd=self.v_int)
         self._add_browse_entry(print_frame, "数据监听目录:", 3, show_status=False, key="data_listen_dir")
+        self._add_entry(print_frame, "数据轮询时间:", "100", 4, unit="ms", key="hot_poll_interval", vcmd=self.v_int)
 
-        self._add_dropdown(print_frame, "转发目标方式:", ["TCP/IP", "HS DLL"], 4, key="forward_mode", callback=self._on_forward_mode_change)
+        self._add_dropdown(print_frame, "转发目标方式:", ["TCP/IP", "HS DLL"], 5, key="forward_mode", callback=self._on_forward_mode_change)
         
-        self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 5, key="forward_target_addr")
-        self._add_entry(print_frame, "转发目标端口:", "9100", 6, key="forward_target_port", vcmd=self.v_int)
-        self._add_entry(print_frame, "转发目标延迟:", "500", 7, unit="ms", key="forward_target_delay", vcmd=self.v_int)
-        self._add_entry(print_frame, "转发目标超时:", "5", 8, unit="s", key="forward_target_timeout", vcmd=self.v_int)
-        self._add_entry(print_frame, "打印长度设置:", "100000", 9, unit="mm", key="print_length", vcmd=self.v_int)
-        self._add_entry(print_frame, "打印宽度设置:", "1800", 10, unit="mm", key="print_width", vcmd=self.v_int)
-        self._add_entry(print_frame, "缓冲字节设置:", "10240", 11, unit="KB", key="buffer_size", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标地址:", "127.0.0.1", 6, key="forward_target_addr")
+        self._add_entry(print_frame, "转发目标端口:", "9100", 7, key="forward_target_port", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标延迟:", "500", 8, unit="ms", key="forward_target_delay", vcmd=self.v_int)
+        self._add_entry(print_frame, "转发目标超时:", "5", 9, unit="s", key="forward_target_timeout", vcmd=self.v_int)
+        self._add_entry(print_frame, "打印长度设置:", "100000", 10, unit="mm", key="print_length", vcmd=self.v_int)
+        self._add_entry(print_frame, "打印宽度设置:", "1800", 11, unit="mm", key="print_width", vcmd=self.v_int)
+        self._add_entry(print_frame, "缓冲字节设置:", "10240", 12, unit="KB", key="buffer_size", vcmd=self.v_int)
         
         # 2. Log Configuration
         log_frame = ttk.LabelFrame(col0, text="日志配置", padding="5")
@@ -219,10 +220,12 @@ class ConfigUI(object):
             self.entries["data_listen_addr"].config(state="disabled")
             self.entries["data_listen_port"].config(state="disabled")
             self.entries["data_listen_dir"].config(state="normal")
+            self.entries["hot_poll_interval"].config(state="normal")
         else:
             self.entries["data_listen_addr"].config(state="normal")
             self.entries["data_listen_port"].config(state="normal")
             self.entries["data_listen_dir"].config(state="disabled")
+            self.entries["hot_poll_interval"].config(state="disabled")
 
     def _validate_int(self, P):
         """Validate integer input (allow empty or digits)"""

@@ -23,6 +23,7 @@ class ConfigContext(object):
             "data_listen_addr": "127.0.0.1",
             "data_listen_port": "9111",
             "data_listen_dir": r"D:\vsDriverbox\hot",
+            "hot_poll_interval": "100",
             "forward_mode": "TCP/IP",
             "forward_target_addr": "127.0.0.1",
             "forward_target_port": "9100",

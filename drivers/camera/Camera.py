@@ -780,9 +780,9 @@ class Camera(object):
         except Exception as e:
             self._log_error(f"Frame callback error: {str(e)}")
 
-    def cb_on_time_out(self, p_param): self._log("Camera timeout")
-    def cb_on_frame_lost(self, p_param): self._log("Camera frame lost")
-    def cb_on_image_data_error(self, p_param): self._log("Camera image data error")
+    def cb_on_time_out(self, p_param): self.stop("Camera timeout")
+    def cb_on_frame_lost(self, p_param): self.stop("Camera frame lost")
+    def cb_on_image_data_error(self, p_param): self.stop("Camera image data error")
     def cb_on_end_of_line(self, p_param): self._log("Camera end of line")
     def cb_on_end_of_batch(self, p_param): self._log("Camera end of batch")
 

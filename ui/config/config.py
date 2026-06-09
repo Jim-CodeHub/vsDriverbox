@@ -139,7 +139,7 @@ class ConfigUI(object):
         
         self._add_entry(stitch_frame, "重叠偏移像素:", "500", 5, key="overlap_offset_pix", vcmd=self.v_int)
         self._add_entry(stitch_frame, "DPI:", "300", 6, key="dpi", vcmd=self.v_int)
-        self._add_dropdown(stitch_frame, "校准程序选择:", ["旧版", "新版"], 7, key="cal_sel")
+        self._add_dropdown(stitch_frame, "校准程序选择:", ["旧版", "新版"], 7, key="cal_sel", callback=self._on_cal_sel_change)
         
         # Add trace-like behavior for real-time update
         self.entries["print_width"].bind("<KeyRelease>", lambda e: self._update_canvas_end_pos())
@@ -229,6 +229,10 @@ class ConfigUI(object):
             self.entries["data_listen_port"].config(state="normal")
             self.entries["data_listen_dir"].config(state="disabled")
             self.entries["hot_poll_interval"].config(state="disabled")
+
+    def _on_cal_sel_change(self, event):
+        """Handle calibration selection change to warn user"""
+        messagebox.showwarning("注意", "校准程序已切换，需同步变更标定文件！")
 
     def _validate_int(self, P):
         """Validate integer input (allow empty or digits)"""

@@ -123,6 +123,8 @@ class ConfigUI(object):
         self._add_browse_entry(cam_settings_frame, "标定文件选择:", 5, is_file=True, default_val=r"D:\vsDriverbox\calib.yaml", key="calib_file", filetypes=[("YAML files", "*.yaml"), ("All files", "*.*")])
         self._add_browse_entry(cam_settings_frame, "采集存储目录:", 6, default_val=r"D:\vsDriverbox\cap", key="capture_save_dir")
         self._add_browse_entry(cam_settings_frame, "白图发送目录:", 7, default_val=r"D:\vsDriverbox\rip", show_status=False, key="rip_send_dir")
+        self._add_entry(cam_settings_frame, "采集行间超时:", "5000", 8, unit="ms", key="cap_line_timeout", vcmd=self.v_int)
+        self._add_entry(cam_settings_frame, "采集帧间超时:", "5000", 9, unit="ms", key="cap_frame_timeout", vcmd=self.v_int)
         
         # 3.2 Stitching Settings
         stitch_frame = ttk.LabelFrame(col1, text="拼接设置", padding="5")
@@ -137,6 +139,7 @@ class ConfigUI(object):
         
         self._add_entry(stitch_frame, "重叠偏移像素:", "500", 5, key="overlap_offset_pix", vcmd=self.v_int)
         self._add_entry(stitch_frame, "DPI:", "300", 6, key="dpi", vcmd=self.v_int)
+        self._add_dropdown(stitch_frame, "校准程序选择:", ["旧版", "新版"], 7, key="cal_sel")
         
         # Add trace-like behavior for real-time update
         self.entries["print_width"].bind("<KeyRelease>", lambda e: self._update_canvas_end_pos())

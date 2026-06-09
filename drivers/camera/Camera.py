@@ -9,7 +9,7 @@
     Note        :
 """
 
-import ctypes, os, json, cv2, threading, socket, struct, sys, queue, time, serial, re
+import ctypes, os, json, cv2, threading, socket, struct, sys, queue, time, serial, re, yaml
 import serial.tools.list_ports
 from datetime import datetime
 import numpy as np
@@ -34,6 +34,8 @@ class Camera(object):
                  capture_img_height=2048,
                  capture_save_dir=r"D:\vsDriverbox\cap",
                  rip_send_dir=r"D:\vsDriverbox\rip",
+                 cap_line_timeout=5000,
+                 cap_frame_timeout=5000,
                  dpi=300,
                  # Stitching Settings
                  stitch_left_ref=2461790,
@@ -43,6 +45,7 @@ class Camera(object):
                  canvas_end_pos=21259,
                  overlap_offset_pix=500,
                  calib_file=r"D:\vsDriverbox\calib.yaml",
+                 cal_sel="旧版",
                  # Board Settings
                  board_comm_addr="192.168.1.99",
                  board_comm_port=502,
@@ -76,6 +79,8 @@ class Camera(object):
         self.__cap_Height = int(capture_img_height)
         self.__cap_path = capture_save_dir
         self.__cap_white_path = rip_send_dir
+        self.__cap_line_timeout = int(cap_line_timeout)
+        self.__cap_frame_timeout = int(cap_frame_timeout)
         self.__Image_DPI = int(dpi)
         
         # 2. Stitching Settings
@@ -120,7 +125,7 @@ class Camera(object):
 
         self.__StTQ_inf = queue.Queue()
         self.__StTQ_img = queue.Queue()
-        self.__stitch = Camera.ImageStitch(x_base_L=int(stitch_left_ref), x_base_R=int(stitch_right_ref), x_invert=int(img_stitch_offset), canvas_start=int(canvas_start_pos), canvas_width=self.__canvas_width, DPI=self.__Image_DPI, hold_pix=int(overlap_offset_pix), YamlPath=calib_file, log_cb=self.log_cb)
+        self.__stitch = Camera.ImageStitch(x_base_L=int(stitch_left_ref), x_base_R=int(stitch_right_ref), x_invert=int(img_stitch_offset), canvas_start=int(canvas_start_pos), canvas_width=self.__canvas_width, DPI=self.__Image_DPI, hold_pix=int(overlap_offset_pix), YamlPath=calib_file, log_cb=self.log_cb, cal_sel=cal_sel)
         threading.Thread(target=self.__St_Thread, daemon=True).start()
         threading.Thread(target=self.__Dt_Thread, daemon=True).start()
 
@@ -441,7 +446,10 @@ class Camera(object):
             IKapCDef.ITKSTREAM_VAL_TRANSFER_MODE_SYNCHRONOUS_WITH_PROTECT))
         self.__error_check(res)
 
-        res = IKapC.ItkStreamSetPrm(self.__m_hStream, IKapCDef.ITKSTREAM_PRM_TIME_OUT, ctypes.c_uint32(-1))
+        res = IKapC.ItkStreamSetPrm(self.__m_hStream, IKapCDef.ITKSTREAM_PRM_TIME_OUT, ctypes.c_uint32(self.__cap_frame_timeout))
+        self.__error_check(res)
+
+        res = IKapC.ItkStreamSetPrm(self.__m_hStream, IKapCDef.ITKSTREAM_PRM_GV_PACKET_INTER_TIMEOUT, ctypes.c_uint32(self.__cap_line_timeout))
         self.__error_check(res)
 
         # Register stream callback
@@ -904,7 +912,7 @@ class Camera(object):
             Direction: bool
             MotionStartPoint: float
 
-        def __init__(self, x_base_L:int = 2461790, x_base_R:int = 29057700, x_invert:int = 629, canvas_start = 7906, canvas_width:int = 21259, DPI:int = 300, hold_pix:int=500, YamlPath=None, log_cb=None) -> None:
+        def __init__(self, x_base_L:int = 2461790, x_base_R:int = 29057700, x_invert:int = 629, canvas_start = 7906, canvas_width:int = 21259, DPI:int = 300, hold_pix:int=500, YamlPath=None, log_cb=None, cal_sel="旧版") -> None:
             """ ImageStitch init
             :param x_base_L: X left base position
             :param x_base_R: X right base position
@@ -915,6 +923,7 @@ class Camera(object):
             :param hold_pix: Offset pixels upwards to avoid light source dimming area, Note: do not exceed overlap pixels
             :param YamlPath: YAML path for calib
             :param log_cb: log callback
+            :param cal_sel: calibration selection ("旧版" or "新版")
             :return:None
             :raises None
             :note : Yaml file SHALL BE loaded (by load_calib_yaml()) before any stitch function used
@@ -936,19 +945,24 @@ class Camera(object):
 
             self.__params = None
 
+            self.__calsel = True if cal_sel == "新版" else False
+
         def load_calib_yaml(self) -> bool:
             if self.__YamlPath and os.path.exists(self.__YamlPath):
                 try:
-                    # Use the new Charuco module Calibration model
-                    self.__params = Charuco.Calibration.from_yaml(self.__YamlPath)
+                    if self.__calsel:
+                        # Use the new Charuco module Calibration model
+                        self.__params = Charuco.Calibration.from_yaml(self.__YamlPath)
+                    else:
+                        with open(self.__YamlPath, 'r', encoding='utf-8') as f:
+                            self.__params = yaml.safe_load(f)
                     return True
                 except Exception as e:
                     return False
 
             return False
 
-        @staticmethod
-        def calibration(img, params):
+        def calibration(self, img, params):
             """Rectify image using Charuco calibration parameters
 
             :param img: numpy array image
@@ -957,7 +971,10 @@ class Camera(object):
             :raises: 
             :note:: Only supports new Charuco calibration
             """
-            return Charuco.calibration(img, params)
+            if self.__calsel:
+                return Charuco.calibration(img, params)
+            else:
+                return Charuco.calibration_origin(img, params)
 
         def _stitch_unit(self, image:np.ndarray, overlap:int, direction:bool, start_pos:int) -> ndarray:
             """ Stitching image to canvas
@@ -1007,7 +1024,7 @@ class Camera(object):
             :notes: This function automatically saves the step data from the previous stitching
             """
             t_start = time.perf_counter()
-            _image_ = Camera.ImageStitch.calibration(_image, self.__params) if Direction else Camera.ImageStitch.calibration(_image[::-1, ...], self.__params)
+            _image_ = self.calibration(_image, self.__params) if Direction else self.calibration(_image[::-1, ...], self.__params)
             t_end = time.perf_counter()
 
             if self.__log_cb:

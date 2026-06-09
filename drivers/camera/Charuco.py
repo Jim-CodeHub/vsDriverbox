@@ -352,3 +352,83 @@ def calibration(img, params):
     out = _remap_full(img, params, interpolation="linear")
     out = cv2.rotate(out, cv2.ROTATE_90_CLOCKWISE)
     return to_grayscale(out)
+
+def calibration_origin(img, params):
+    """Read YAML configuration and correct image
+
+    :param img: Original image (BGR)
+    :param params: Calibration parameters
+    :return: PIL.Image object (RGB format)
+    :raises: ValueError, KeyError
+    :note::
+    """
+
+    # 2. Read image
+    if img is None:
+        raise ValueError("Cannot read image, please check format")
+
+    h, w = img.shape[:2]
+
+    # 3. Check if calibration is enabled
+    if not params or not params.get('enable', False):
+        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # 4. Extract parameters and convert to numpy arrays
+    try:
+        mtx1 = np.array(params['mtx1'])
+        dist1 = np.array(params['dist1'])
+        mode = params.get('mode', 'resize')
+    except KeyError as e:
+        raise KeyError(f"Missing necessary parameters in YAML file: {e}")
+
+    # 5. Step 1: Remove lens distortion (Undistort)
+    img_undistort = cv2.undistort(img, mtx1, dist1, None, mtx1)
+
+    # 6. Step 2: Geometric transformation based on mode
+    final_img = None
+    if mode == 'resize':
+        final_img = img_undistort
+    elif mode == 'warp':
+        # --- Warp mode (Perspective transform) ---
+        if params['H_board'] is None:
+            final_img = img_undistort
+        else:
+            H = np.array(params['H_board'])
+
+            # [Key Step] Automatically calculate boundaries after transformation
+            # Direct warpPerspective may cause image disappearance due to negative coordinates
+            # 1. Get original four corners
+            corners = np.array([
+                [0, 0],
+                [w, 0],
+                [w, h],
+                [0, h]
+            ], dtype=np.float32).reshape(-1, 1, 2)
+
+            # 2. Calculate transformed corner positions
+            new_corners = cv2.perspectiveTransform(corners, H)
+
+            # 3. Get bounding box of transformed image (x_min, x_max, y_min, y_max)
+            [x_min, y_min] = np.int32(new_corners.min(axis=0).ravel() - 0.5)
+            [x_max, y_max] = np.int32(new_corners.max(axis=0).ravel() + 0.5)
+
+            # 4. Calculate translation matrix to move image back to positive coordinate area
+            translation_dist = [-x_min, -y_min]
+            H_translation = np.array([
+                [1, 0, translation_dist[0]],
+                [0, 1, translation_dist[1]],
+                [0, 0, 1]
+            ])
+
+            # 5. Combine transformation matrices
+            full_H = H_translation.dot(H)
+
+            # 6. Calculate new image size
+            new_w = x_max - x_min
+            new_h = y_max - y_min
+
+            # Execute perspective transform
+            final_img = cv2.warpPerspective(img_undistort, full_H, (new_w, new_h))
+    else:
+        final_img = img_undistort
+    return final_img

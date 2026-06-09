@@ -34,6 +34,8 @@ class ConfigContext(object):
             "buffer_size": "10240",
             "log_dir": r"D:\vsDriverbox\log",
             "log_limit": "10240",
+            "log_img_mode": False,
+            "log_img_dir": r"D:\vsDriverbox\log\img",
             "cam_buffer_count": "10",
             "data_recv_addr": "127.0.0.1",
             "data_recv_port": "9120",

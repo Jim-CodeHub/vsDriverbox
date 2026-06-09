@@ -29,6 +29,7 @@ class ConfigUI(object):
         self.root.resizable(True, True)
         
         self.entries = {}
+        self.buttons = {}
         
         # Validation commands
         self.v_int = (self.root.register(self._validate_int), '%P')
@@ -103,6 +104,8 @@ class ConfigUI(object):
         
         self._add_browse_entry(log_frame, "日志存储目录:", 0, default_val=r"D:\vsDriverbox\log", key="log_dir")
         self._add_entry(log_frame, "日志存储上限:", "10240", 1, unit="MB", key="log_limit", vcmd=self.v_int)
+        self._add_checkbox(log_frame, "日志存图模式:", 2, key="log_img_mode", callback=self._on_log_img_mode_change)
+        self._add_browse_entry(log_frame, "日志存图目录:", 3, default_val=r"D:\vsDriverbox\log\img", key="log_img_dir")
         
         # --- Column 1: Camera & Stitching ---
         col1 = ttk.Frame(main_container)
@@ -173,6 +176,17 @@ class ConfigUI(object):
         # Load initial data
         self.load_ui_data()
 
+    def _add_checkbox(self, parent, label_text, row, key=None, callback=None):
+        """Helper to add checkbox to a grid"""
+        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky=tk.W, pady=2)
+        
+        var = tk.BooleanVar()
+        check = ttk.Checkbutton(parent, variable=var, command=callback if callback else None)
+        check.grid(row=row, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        if key:
+            self.entries[key] = var # Store the variable instead of widget for easy get/set
+            
     def _add_entry(self, parent, label_text, default_val, row, unit="", key=None, vcmd=None):
         """Helper to add label + entry + unit to a grid"""
         ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky=tk.W, pady=2)
@@ -234,6 +248,14 @@ class ConfigUI(object):
         """Handle calibration selection change to warn user"""
         messagebox.showwarning("注意", "校准程序已切换，需同步变更标定文件！")
 
+    def _on_log_img_mode_change(self):
+        """Handle log image mode change to enable/disable directory entry"""
+        enabled = self.entries["log_img_mode"].get()
+        state = "normal" if enabled else "disabled"
+        self.entries["log_img_dir"].config(state=state)
+        if "log_img_dir" in self.buttons:
+            self.buttons["log_img_dir"].config(state=state)
+
     def _validate_int(self, P):
         """Validate integer input (allow empty or digits)"""
         if P == "" or P.isdigit():
@@ -272,7 +294,11 @@ class ConfigUI(object):
                 entry.delete(0, tk.END)
                 entry.insert(0, path)
 
-        ttk.Button(parent, text="浏览", width=5, command=browse).grid(row=row, column=2, sticky=tk.W)
+        btn = ttk.Button(parent, text="浏览", width=5, command=browse)
+        btn.grid(row=row, column=2, sticky=tk.W)
+        
+        if key:
+            self.buttons[key] = btn
         
         if show_status:
             status_label = ttk.Label(parent, text="未选择", font=("Microsoft YaHei", 7), foreground="gray")
@@ -313,7 +339,10 @@ class ConfigUI(object):
         """
         config_data = {}
         for key, entry in self.entries.items():
-            config_data[key] = entry.get()
+            if isinstance(entry, tk.BooleanVar):
+                config_data[key] = entry.get()
+            else:
+                config_data[key] = entry.get()
             
         if config_context.save(config_data):
             config_context.notify_all()
@@ -390,6 +419,10 @@ class ConfigUI(object):
                         self._on_forward_mode_change(None)
                     elif key == "listen_mode":
                         self._on_listen_mode_change(None)
+                elif isinstance(self.entries[key], tk.BooleanVar):
+                    self.entries[key].set(value)
+                    if key == "log_img_mode":
+                        self._on_log_img_mode_change()
                 else:
                     self.entries[key].delete(0, tk.END)
                     self.entries[key].insert(0, value)

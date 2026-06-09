@@ -55,6 +55,9 @@ class Camera(object):
                  light_serial_port='COM3',
                  light_baudrate=19200,
                  light_comm_timeout=1000,
+                 # Log Save Image Settings
+                 log_img_mode=False,
+                 log_img_dir=r"D:\vsDriverbox\log\img",
                  # Callbacks
                  log_cb=None,
                  fatal_error_cb=None,
@@ -82,6 +85,9 @@ class Camera(object):
         self.__cap_line_timeout = int(cap_line_timeout)
         self.__cap_frame_timeout = int(cap_frame_timeout) if int(cap_frame_timeout) != 0 else -1
         self.__Image_DPI = int(dpi)
+
+        self.__log_img_mode = bool(log_img_mode)
+        self.__log_img_dir = log_img_dir
         
         # 2. Stitching Settings
         self.__canvas_width = int(canvas_end_pos)
@@ -772,6 +778,18 @@ class Camera(object):
 
                 self._log(f"Camera frame ended [{self.__frameOcnt}]")
                 self.__frameOcnt += 1
+
+                if self.__log_img_mode:
+                    try:
+                        if not os.path.exists(self.__log_img_dir):
+                            os.makedirs(self.__log_img_dir, exist_ok=True)
+                        
+                        save_name = f"{self.__frameOcnt}.tif"
+                        save_path = os.path.join(self.__log_img_dir, save_name)
+                        Image.fromarray(image).save(save_path, dpi=(self.__Image_DPI, self.__Image_DPI))
+                        # self._log(f"Log image saved: {save_name}")
+                    except Exception as e:
+                        self._log_error(f"Failed to save log image: {str(e)}")
 
                 self.__StTQ_img.put(image)
             else:

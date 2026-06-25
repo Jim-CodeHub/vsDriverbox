@@ -1,4 +1,5 @@
 
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """线阵 ChArUco 快速校正（优化版）。对外接口：rectify_charuco_image()。
@@ -185,14 +186,15 @@ class Calibration:
     source_y_model: RobustAxisModel
     residual_model: Optional[RBFResidualModel]
     output_dpi: int
+    y_scale: float = 1.0
 
     @classmethod
-    def from_yaml(cls, path: PathLike) -> "Calibration":
+    def from_yaml(cls, path: PathLike, y_scale: float = 1.0) -> "Calibration":
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
         board = data.get("board", data)
         square_mm = float(board.get("square_size_mm", 20.0))
-        px_per_sq = int(board.get("pixels_per_square", 236))
+        px_per_sq = float(board.get("pixels_per_square", 236.18))
         residual = None
         rc = data.get("residual_correction") or data.get("residual_model")
         if isinstance(rc, dict) and rc.get("type") == "rbf_tapered_grid":
@@ -205,7 +207,7 @@ class Calibration:
             sx = RobustAxisModel.from_yaml(data["source_x_model"])
             sy = RobustAxisModel.from_yaml(data["source_y_model"])
             dpi = int(data.get("output_defaults", {}).get("dpi", 300))
-        return cls(px_per_sq / square_mm, sx, sy, residual, dpi)
+        return cls(px_per_sq / square_mm, sx, sy, residual, dpi, y_scale)
 
 
 # ---------- 校正核心 ----------
@@ -293,7 +295,7 @@ def _remap_full(
 ) -> np.ndarray:
     """全图一次性 remap，避免分块循环开销。"""
     ranges = _infer_ranges(image.shape, calib.source_x_model, calib.source_y_model)
-    col_phys = _step_vec(ranges["sx0"], ranges["sx1"], calib.pixels_per_mm)
+    col_phys = _step_vec(ranges["sx0"], ranges["sx1"], calib.pixels_per_mm * calib.y_scale)
     row_phys = _step_vec(ranges["sy0"], ranges["sy1"], calib.pixels_per_mm)
     out_h, out_w = len(row_phys), len(col_phys)
     sx, sy = calib.source_x_model, calib.source_y_model
@@ -330,22 +332,13 @@ def rectify_charuco_image(
     interpolation: str = "linear",
     chunk_rows: int = 256,
     rotate_ccw_90: bool = True,
+    y_scale: float = 1.0,
 ) -> np.ndarray:
-    """
-    读取 YAML 标定参数，校正线阵图，返回灰度 ndarray。
-
-    参数:
-        yaml_path: 标定 YAML 路径
-        image: 图像路径或 ndarray
-        interpolation: nearest / linear / cubic / lanczos (默认 linear，速度快)
-        chunk_rows: 保留参数（优化版不使用分块，兼容接口）
-        rotate_ccw_90: 是否逆时针旋转 90°（与 GUI 标定一致）
-    """
-    calib = Calibration.from_yaml(yaml_path)
+    calib = Calibration.from_yaml(yaml_path, y_scale=y_scale)
     img = load_image(image) if isinstance(image, (str, Path)) else np.asarray(image)
     out = _remap_full(img, calib, interpolation=interpolation)
     if rotate_ccw_90:
-        out = cv2.rotate(out, cv2.ROTATE_90_CLOCKWISE)
+        out = cv2.rotate(out, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return to_grayscale(out)
 
 def calibration(img, params):

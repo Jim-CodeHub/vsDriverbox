@@ -27,7 +27,7 @@ from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.6"
+APP_VERSION = "1.0.7_Beta_01"
 
 # Global states
 is_started = False
@@ -160,6 +160,7 @@ def create_camera_instance(fatal_error_cb=None, status_cb=None):
         canvas_start_pos=config.get('canvas_start_pos', 7906),
         canvas_end_pos=config.get('canvas_end_pos', 21259),
         overlap_offset_pix=config.get('overlap_offset_pix', 500),
+        stitch_timeout=config.get('stitch_timeout', 60),
         calib_file=config.get('calib_file', r"D:\vsDriverbox\calib.yaml"),
         cal_sel=config.get('cal_sel', '旧版'),
         board_comm_addr=config.get('board_comm_addr', "192.168.1.99"),
@@ -356,10 +357,12 @@ def on_image_stitch(icon, item):
                 target_json = "LocalImageInfos.json"
                 if target_json not in json_files:
                     target_json = json_files[0]
-                    
-                logger.info(f"Starting image stitching from {path} using {target_json}")
-                # Use a longer timeout (60s) for heavy stitching tasks
-                stitched_img_np = cam.stitch_from_json(path, target_json, timeout=60.0)
+                
+                # Use configured stitch timeout
+                stitch_timeout = float(config_context.config.get('stitch_timeout', 60.0))
+                
+                logger.info(f"Starting image stitching from {path} using {target_json} with timeout {stitch_timeout}s")
+                stitched_img_np = cam.stitch_from_json(path, target_json, timeout=stitch_timeout)
                 
                 if isinstance(stitched_img_np, np.ndarray):
                     # Save the result with correct DPI

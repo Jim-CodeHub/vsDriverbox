@@ -60,7 +60,8 @@ class ConfigContext(object):
             "img_stitch_offset": "629",
             "canvas_start_pos": "7906",
             "canvas_end_pos": "21259",
-            "overlap_offset_pix": "500"
+            "overlap_offset_pix": "500",
+            "stitch_timeout": "60"
         }
         # Define synchronization events for business threads
         self.events = {

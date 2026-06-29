@@ -44,6 +44,7 @@ class Camera(object):
                  canvas_start_pos=7906,
                  canvas_end_pos=21259,
                  overlap_offset_pix=500,
+                 stitch_timeout=60,
                  calib_file=r"D:\vsDriverbox\calib.yaml",
                  cal_sel="旧版",
                  # Board Settings
@@ -91,6 +92,7 @@ class Camera(object):
         
         # 2. Stitching Settings
         self.__canvas_width = int(canvas_end_pos)
+        self.__stitch_timeout = int(stitch_timeout)
         
         # Internal state
         self.__m_hDevice = ctypes.c_void_p(None)
@@ -225,9 +227,12 @@ class Camera(object):
         """Get current image DPI setting"""
         return self.__Image_DPI
 
+    def get_stitch_timeout(self):
+        """Get current image stitching timeout setting (in seconds)"""
+        return self.__stitch_timeout
+
     def stitch_from_json(self, file_path:str, file_name:str= "LocalImageInfos.json") -> np.ndarray:
         """ Stitching images from JSON file (Wrapper)
-
         :param file_path: Directory containing JSON and images
         :param file_name: JSON file name
         :return: Stitched canvas as numpy array

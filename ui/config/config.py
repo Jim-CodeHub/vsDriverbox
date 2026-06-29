@@ -143,6 +143,7 @@ class ConfigUI(object):
         self._add_entry(stitch_frame, "重叠偏移像素:", "500", 5, key="overlap_offset_pix", vcmd=self.v_int)
         self._add_entry(stitch_frame, "DPI:", "300", 6, key="dpi", vcmd=self.v_int)
         self._add_dropdown(stitch_frame, "校准程序选择:", ["旧版", "新版"], 7, key="cal_sel", callback=self._on_cal_sel_change)
+        self._add_entry(stitch_frame, "图像拼接超时:", "60", 8, unit="s", key="stitch_timeout", vcmd=self.v_int)
         
         # Add trace-like behavior for real-time update
         self.entries["print_width"].bind("<KeyRelease>", lambda e: self._update_canvas_end_pos())

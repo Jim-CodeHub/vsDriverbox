@@ -27,7 +27,7 @@ from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
 
 # Global constants
-APP_VERSION = "1.0.7_Beta_01"
+APP_VERSION = "1.0.8_Beta_01"
 
 # Global states
 is_started = False
@@ -170,6 +170,8 @@ def create_camera_instance(fatal_error_cb=None, status_cb=None):
         light_serial_port=config.get('light_serial_port', 'COM3'),
         light_baudrate=config.get('light_baudrate', 19200),
         light_comm_timeout=config.get('light_comm_timeout', 1000),
+        light_brightness=config.get('light_brightness', 100),
+        light_use_enabled=config.get('light_use_enabled', True),
         log_img_mode=config.get('log_img_mode', False),
         log_img_dir=config.get('log_img_dir', r"D:\vsDriverbox\log\img"),
         log_cb=logger.info,

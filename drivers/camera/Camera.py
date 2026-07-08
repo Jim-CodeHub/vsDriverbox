@@ -56,6 +56,8 @@ class Camera(object):
                  light_serial_port='COM3',
                  light_baudrate=19200,
                  light_comm_timeout=1000,
+                 light_brightness=100,
+                 light_use_enabled=True,
                  # Log Save Image Settings
                  log_img_mode=False,
                  log_img_dir=r"D:\vsDriverbox\log\img",
@@ -140,6 +142,8 @@ class Camera(object):
         #self.running = True # Set after thread again
 
         self.__light = Camera.Illuminant(port=light_serial_port, baud=int(light_baudrate), tout=int(light_comm_timeout)/1000.0)
+        self.__light_brightness = int(light_brightness)
+        self.__light_use_enabled = bool(light_use_enabled)
 
         self.DATA_HEADER_SIZE = 28
 
@@ -247,11 +251,19 @@ class Camera(object):
         :raises: None
         :note:: Automatically calls stop() on any failure
         """
-        #try:
-        #    if not self.__light.set_switch(True):
-        #        return False, "灯光控制器连接失败，请检查串口或电源"
-        #except Exception as e:
-        #    return False, f"灯光控制器错误: {str(e)}"
+        try:
+           if self.__light_use_enabled:
+               # First set brightness
+               if not self.__light.set_brightness(self.__light_brightness):
+                   return False, "灯光亮度设置失败，请检查串口或电源"
+               
+               # Then turn on light
+               if not self.__light.set_switch(True):
+                   return False, "灯光控制器连接失败，请检查串口或电源"
+           else:
+               self._log("灯光控制已禁用，跳过灯光初始化")
+        except Exception as e:
+           return False, f"灯光控制器错误: {str(e)}"
 
         try:
             # 0. load calib yaml file
@@ -344,7 +356,14 @@ class Camera(object):
             self._log_error(f"Failed to close device: {str(e)}")
             success = False
 
-        self.__light.set_switch(False)
+        if self.__light_use_enabled:
+            try:
+                self.__light.set_switch(False)
+            except Exception as e:
+                self._log_error(f"Failed to turn off light: {str(e)}")
+                success = False
+        else:
+            self._log("灯光控制已禁用，跳过灯光关闭")
         self._log("Camera driver service stopped completely")
         return success, None
 
@@ -1297,7 +1316,6 @@ class Camera(object):
 
             :param brightness: 0 ~ 100
             :return: False when timeout without right response or True
-            :raises SerialException when serial port open error.
             """
             cmd = '$'
             cmd += 'S'
@@ -1308,9 +1326,10 @@ class Camera(object):
             with serial.Serial(port=self.port, baudrate=self.baud, timeout=self.tout) as ser:
                 ser.write(cmd.encode('utf-8'))
                 data = ser.read(4).decode('utf-8')
+
                 ser.close()
 
-                return False if data is None or data != '$OK#' or data == '$NG#' else True
+            return False if data is None or data != '$OK#' or data == '$NG#' else True
 
         def get_brightness(self) -> (bool, list):
             """Get brightness of light.
@@ -1422,24 +1441,19 @@ class Camera(object):
 
             :param switch: True for On and False for Off
             :return: False when timeout without right response or True
-            :raises SerialException when serial port open error.
             """
             cmd = '$'
             cmd += 'W'
             cmd += 'A'
             cmd += 'N' if True == switch else 'F'
             cmd += '#'
-            try:
-                serial.Serial(port=self.port, baudrate=self.baud, timeout=self.tout)
-            except serial.SerialException:
-                pass #这样才不会报错
-            # with serial.Serial(port=self.port, baudrate=self.baud, timeout=self.tout) as ser:
-            #     ser.write(cmd.encode('utf-8'))
-            #     data = "0"
-            #     #data = ser.read(4).decode('utf-8')
-            #     #ser.close()
-            #
-            #     return False if data is None or data != '$OK#' or data == '$NG#' else True
+
+            with serial.Serial(port=self.port, baudrate=self.baud, timeout=self.tout) as ser:
+                ser.write(cmd.encode('utf-8'))
+                data = ser.read(4).decode('utf-8')
+                ser.close()
+
+                return False if data is None or data != '$OK#' or data == '$NG#' else True
 
         def get_switch(self) -> (bool, list):
             """Get switch of light.

@@ -53,6 +53,8 @@ class ConfigContext(object):
             "light_serial_port": "COM3",
             "light_baudrate": "19200",
             "light_comm_timeout": "1000",
+            "light_brightness": "100",
+            "light_use_enabled": True,
             "dpi": "300",
             "cal_sel": "旧版",
             "stitch_left_ref": "2461790",

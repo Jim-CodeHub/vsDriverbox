@@ -13,7 +13,13 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
 import json
+import sys
+import serial.tools.list_ports
 from .cfgcxt import config_context
+
+# 添加父目录到路径，以便导入灯光类
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from drivers.camera.Camera import Camera
 
 class ConfigUI(object):
     # Magic header for config file validation
@@ -169,10 +175,32 @@ class ConfigUI(object):
         light_frame = ttk.LabelFrame(col2, text="灯光设置", padding="5")
         light_frame.grid(row=1, column=0, sticky=tk.NSEW, pady=2)
         
-        self._add_entry(light_frame, "串口端口设置:", "COM3", 0, key="light_serial_port")
-        self._add_entry(light_frame, "波特率设置:", "19200", 1, key="light_baudrate", vcmd=self.v_int)
-        self._add_entry(light_frame, "通讯超时设置:", "1000", 2, unit="ms", key="light_comm_timeout", vcmd=self.v_int)
-        self._add_entry(light_frame, "灯光亮度设置:", "100", 3, key="light_brightness", vcmd=self.v_int)
+        self._add_checkbox(light_frame, "使用灯光设置:", 0, key="light_use_enabled", callback=self._on_light_use_enabled_change)
+        self._add_serial_port_entry(light_frame, "串口端口设置:", 1, default_val="COM3", key="light_serial_port")
+        self._add_entry(light_frame, "波特率设置:", "19200", 2, key="light_baudrate", vcmd=self.v_int)
+        self._add_entry(light_frame, "通讯超时设置:", "1000", 3, unit="ms", key="light_comm_timeout", vcmd=self.v_int)
+        
+        # 灯光亮度设置 + 测试按钮
+        ttk.Label(light_frame, text="灯光亮度设置:").grid(row=4, column=0, sticky=tk.W, pady=2)
+        
+        brightness_entry = ttk.Entry(light_frame, width=25, validate="key", validatecommand=self.v_int)
+        brightness_entry.insert(0, "100")
+        brightness_entry.grid(row=4, column=1, sticky=tk.W, padx=5, pady=2)
+        self.entries["light_brightness"] = brightness_entry
+        
+        # 保存控件引用
+        if not hasattr(self, 'light_widgets'):
+            self.light_widgets = {}
+        self.light_widgets["light_brightness"] = brightness_entry
+        
+        # 测试按钮状态变量
+        self.test_button_state = tk.BooleanVar(value=False)
+        # 创建测试按钮 - 与刷新按钮样式保持一致
+        self.test_button = tk.Button(light_frame, text="测试", width=5, command=self._toggle_test_button)
+        self.test_button.grid(row=4, column=2, sticky=tk.W)
+        self.light_widgets["test_button"] = self.test_button
+        # 设置初始背景色
+        self._update_test_button_color()
         
         # Load initial data
         self.load_ui_data()
@@ -203,6 +231,11 @@ class ConfigUI(object):
         
         if key:
             self.entries[key] = entry
+            # 保存控件引用到专门的灯光控件字典
+            if key.startswith("light_"):
+                if not hasattr(self, 'light_widgets'):
+                    self.light_widgets = {}
+                self.light_widgets[key] = entry
             
         if unit:
             ttk.Label(parent, text=unit).grid(row=row, column=2, sticky=tk.W)
@@ -256,6 +289,25 @@ class ConfigUI(object):
         self.entries["log_img_dir"].config(state=state)
         if "log_img_dir" in self.buttons:
             self.buttons["log_img_dir"].config(state=state)
+    
+    def _on_light_use_enabled_change(self):
+        """Handle light use enabled change to enable/disable all light settings"""
+        if not hasattr(self, 'entries') or "light_use_enabled" not in self.entries:
+            return
+        
+        enabled = self.entries["light_use_enabled"].get()
+        state = "normal" if enabled else "disabled"
+        
+        # 如果没有保存灯光控件引用，直接返回
+        if not hasattr(self, 'light_widgets'):
+            return
+        
+        # 遍历所有灯光控件并设置状态
+        for key, widget in self.light_widgets.items():
+            try:
+                widget.config(state=state)
+            except:
+                pass
 
     def _validate_int(self, P):
         """Validate integer input (allow empty or digits)"""
@@ -275,6 +327,45 @@ class ConfigUI(object):
         except ValueError:
             pass
         return False
+
+    def _add_serial_port_entry(self, parent, label_text, row, default_val="COM3", key=None):
+        """Helper to add label + serial port combobox + refresh button"""
+        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky=tk.W, pady=2)
+        
+        combo = ttk.Combobox(parent, width=22, state="readonly")
+        combo.grid(row=row, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        if key:
+            self.entries[key] = combo
+        
+        def refresh_serial_ports():
+            """Refresh and populate the serial port dropdown"""
+            ports = serial.tools.list_ports.comports()
+            port_list = [port.device for port in ports]
+            combo['values'] = port_list
+            
+            current_value = combo.get()
+            if current_value in port_list:
+                combo.set(current_value)
+            elif port_list:
+                combo.set(port_list[0])
+            else:
+                combo.set(default_val)
+        
+        refresh_serial_ports()
+        combo.set(default_val)
+        
+        btn = ttk.Button(parent, text="刷新", width=5, command=refresh_serial_ports)
+        btn.grid(row=row, column=2, sticky=tk.W)
+        
+        if key:
+            self.buttons[key] = btn
+            # 保存控件引用到专门的灯光控件字典
+            if key.startswith("light_"):
+                if not hasattr(self, 'light_widgets'):
+                    self.light_widgets = {}
+                self.light_widgets[key] = combo
+                self.light_widgets[key + '_btn'] = btn
 
     def _add_browse_entry(self, parent, label_text, row, is_file=False, default_val="", show_status=True, key=None, filetypes=None):
         """Helper to add label + entry + browse button"""
@@ -395,8 +486,12 @@ class ConfigUI(object):
             config_data = import_obj.get("data", {})
             for key, value in config_data.items():
                 if key in self.entries:
-                    self.entries[key].delete(0, tk.END)
-                    self.entries[key].insert(0, str(value))
+                    if isinstance(self.entries[key], tk.BooleanVar):
+                        # Handle boolean values for checkboxes
+                        self.entries[key].set(value)
+                    else:
+                        self.entries[key].delete(0, tk.END)
+                        self.entries[key].insert(0, str(value))
             
             messagebox.showinfo("成功", "配置加载成功，请点击“确定”以应用更改。")
             self._update_canvas_end_pos()
@@ -429,6 +524,8 @@ class ConfigUI(object):
                     self.entries[key].insert(0, value)
         
         self._update_canvas_end_pos()
+        # 初始化灯光设置状态
+        self._on_light_use_enabled_change()
 
     def show(self):
         """Display configuration window
@@ -440,3 +537,49 @@ class ConfigUI(object):
         """
         if isinstance(self.root, tk.Tk):
             self.root.mainloop()
+    
+    def _update_test_button_color(self):
+        """更新测试按钮的背景颜色"""
+        if self.test_button_state.get():
+            # 按下状态（on）- 绿色背景
+            self.test_button.config(bg="#4CAF50", fg="white")
+        else:
+            # 抬起状态（off）- 灰色背景
+            self.test_button.config(bg="#f0f0f0", fg="black")
+    
+    def _toggle_test_button(self):
+        """切换测试按钮状态并控制灯光"""
+        try:
+            # 获取当前配置
+            port = self.entries["light_serial_port"].get()
+            baud = int(self.entries["light_baudrate"].get())
+            tout = int(self.entries["light_comm_timeout"].get()) / 1000.0
+            brightness = int(self.entries["light_brightness"].get())
+            
+            # 创建灯光实例
+            light = Camera.Illuminant(port=port, baud=baud, tout=tout)
+            
+            # 设置参数
+            light.set_port(port)
+            light.set_baud(baud)
+            light.set_tout(tout)
+            
+            # 设置亮度
+            if not light.set_brightness(brightness):
+                messagebox.showerror("错误", "灯光亮度设置失败")
+                return
+            
+            # 切换开关状态
+            new_state = not self.test_button_state.get()
+            if not light.set_switch(new_state):
+                messagebox.showerror("错误", "灯光开关设置失败")
+                return
+            
+            # 更新按钮状态
+            self.test_button_state.set(new_state)
+            self._update_test_button_color()
+            
+        except ValueError as e:
+            messagebox.showerror("错误", f"参数格式错误：{str(e)}")
+        except Exception as e:
+            messagebox.showerror("错误", f"灯光控制失败：{str(e)}")

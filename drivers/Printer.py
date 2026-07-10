@@ -88,6 +88,28 @@ class Printer(object):
             # or just call it as is. Usually callers pass logger.info or similar.
             self.log_cb(f"Printer ERROR: {msg}")
 
+    def _clear_hot_folder(self):
+        """Clear all files in the hot folder directory.
+        
+        :return: None
+        :raises: None
+        """
+        if not self.listen_dir or not os.path.exists(self.listen_dir):
+            return
+        
+        try:
+            files = os.listdir(self.listen_dir)
+            for filename in files:
+                file_path = os.path.join(self.listen_dir, filename)
+                try:
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        self._log(f"Cleared file from hot folder: {filename}")
+                except Exception as e:
+                    self._log_error(f"Failed to clear file {filename}: {str(e)}")
+        except Exception as e:
+            self._log_error(f"Failed to clear hot folder: {str(e)}")
+
     def get_prn_file_size(self, data: bytes) -> int:
         """Parse PRN file header to get total file size
 
@@ -182,6 +204,9 @@ class Printer(object):
                      err_msg = f"无法创建热文件夹目录: {str(e)}"
                      self.stop(err_msg)
                      return False, err_msg
+             
+             # Clear all files in hot folder before starting monitoring
+             self._clear_hot_folder()
              
              self.next_expected_index = 0
              self.pending_files.clear()

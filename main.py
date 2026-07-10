@@ -25,9 +25,10 @@ from drivers.Printer import Printer
 from utils.utils import logger, get_resource_path
 from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
+from utils.i18n import translator
 
 # Global constants
-APP_VERSION = "1.0.8_Beta_01"
+APP_VERSION = "1.0.9_Beta_01"
 
 # Global states
 is_started = False
@@ -107,7 +108,7 @@ def handle_runtime_error():
         logger.error(f"Runtime error detected: {msg}")
         stop_system()
         icon_instance.icon = ICONS['offline']
-        icon_instance.notify(f"运行异常中断: {msg}", title="系统错误")
+        icon_instance.notify(f"{translator.t('notifications.error_title')}: {msg}", title=translator.t('notifications.error_title'))
         icon_instance.update_menu()
 
 def icon_animation_thread():
@@ -278,16 +279,16 @@ def on_toggle_start_stop(icon, item):
             is_cap_mode = False
             icon.icon = ICONS['standby']
             logger.info("System started successfully")
-            icon.notify("系统已成功启动", title="Vision Driver Box")
+            icon.notify(translator.t('notifications.system_started'), title=translator.t('notifications.app_title'))
         else:
             logger.error(f"Startup failed: {error_msg}")
-            icon.notify(f"启动失败: {error_msg}", title="错误")
+            icon.notify(f"{translator.t('notifications.startup_failed')}: {error_msg}", title=translator.t('notifications.error_title'))
             icon.icon = ICONS['offline']
     else:
         stop_system()
         icon.icon = ICONS['offline']
         logger.info("System stopped and resources released")
-        icon.notify("系统已停止并释放资源", title="Vision Driver Box")
+        icon.notify(translator.t('notifications.system_stopped'), title=translator.t('notifications.app_title'))
     
     icon.update_menu()
 
@@ -302,19 +303,56 @@ def on_capture_image(icon, item):
             is_started = False # Mutual exclusion: not "started" in the normal sense
             icon.icon = ICONS['capMode']
             logger.info("Capture image mode entered successfully")
-            icon.notify("采集图像模式已启动", title="Vision Driver Box")
+            icon.notify(translator.t('notifications.capture_started'), title=translator.t('notifications.app_title'))
         else:
             logger.error(f"Capture startup failed: {error_msg}")
-            icon.notify(f"采集启动失败: {error_msg}", title="错误")
+            icon.notify(f"{translator.t('notifications.capture_failed')}: {error_msg}", title=translator.t('notifications.error_title'))
             icon.icon = ICONS['offline']
     else:
         # Stop capture mode (same as stop_system)
         stop_system()
         icon.icon = ICONS['offline']
         logger.info("Capture mode stopped and resources released")
-        icon.notify("采集已停止并释放资源", title="Vision Driver Box")
+        icon.notify(translator.t('notifications.capture_stopped'), title=translator.t('notifications.app_title'))
     
     icon.update_menu()
+
+def create_tray_menu():
+    """Create tray menu with current language"""
+    # Create language submenu
+    language_menu_items = []
+    for lang_code, lang_name in translator.LANGUAGES.items():
+        language_menu_items.append(
+            pystray.MenuItem(
+                lang_name,
+                create_language_handler(lang_code),
+                checked=is_language_checked(lang_code)
+            )
+        )
+    
+    return pystray.Menu(
+        pystray.MenuItem(get_start_stop_text, on_toggle_start_stop, enabled=is_start_stop_enabled),
+        pystray.MenuItem(get_capture_text, on_capture_image, enabled=is_capture_enabled),
+        pystray.MenuItem(translator.t('tray_menu.image_stitch'), on_image_stitch),
+        pystray.MenuItem(translator.t('tray_menu.settings'), on_config),
+        pystray.MenuItem(translator.t('tray_menu.tools'), pystray.Menu(
+            pystray.MenuItem(translator.t('tray_menu.generate_gantt'), on_generate_gantt)
+        ), enabled=is_tools_enabled),
+        pystray.MenuItem(translator.t('tray_menu.language'), pystray.Menu(*language_menu_items)),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem(translator.t('tray_menu.exit'), on_exit)
+    )
+
+def on_change_language(lang_code):
+    """Handle language change"""
+    translator.set_language(lang_code)
+    config_context.config["language"] = lang_code
+    config_context.save(config_context.config)
+    global icon_instance
+    if icon_instance:
+        # Recreate the menu with new language
+        icon_instance.menu = create_tray_menu()
+        icon_instance.update_menu()
 
 def on_image_stitch(icon, item):
     """Handles offline image stitching from a directory of JSON and images in a separate thread."""
@@ -326,7 +364,7 @@ def on_image_stitch(icon, item):
             # But let's use a temporary root.
             root = tk.Tk()
             root.withdraw()
-            path = filedialog.askdirectory(parent=root, title="选择拼接目录")
+            path = filedialog.askdirectory(parent=root, title=translator.t('config_ui.stitch_select_dir'))
             
             if not path:
                 root.destroy()
@@ -335,7 +373,7 @@ def on_image_stitch(icon, item):
             # 2. Check for JSON file
             json_files = [f for f in os.listdir(path) if f.endswith('.json')]
             if not json_files:
-                messagebox.showwarning("路径选择错误", "所选目录中没有找到JSON配置文件", parent=root)
+                messagebox.showwarning(translator.t('config_ui.warning'), translator.t('config_ui.stitch_path_error'), parent=root)
                 root.destroy()
                 return
 
@@ -371,15 +409,15 @@ def on_image_stitch(icon, item):
                     save_path = os.path.join(path, "stitched_result.tif")
                     dpi_val = cam.get_dpi()
                     Image.fromarray(stitched_img_np).save(save_path, dpi=(dpi_val, dpi_val))
-                    messagebox.showinfo("拼接成功", f"图像拼接完成，已保存至：\n{save_path}", parent=root)
+                    messagebox.showinfo(translator.t('config_ui.stitch_success'), f"{translator.t('config_ui.stitch_success')}：\n{save_path}", parent=root)
                     logger.info(f"Image stitching completed and saved to {save_path}")
                 elif isinstance(stitched_img_np, tuple) and not stitched_img_np[0]:
                     # ProcessProxy error return
                     error_detail = stitched_img_np[1]
                     logger.error(f"Image stitching process error: {error_detail}")
-                    messagebox.showerror("拼接失败", f"拼接过程中发生进程错误：\n{error_detail}", parent=root)
+                    messagebox.showerror(translator.t('config_ui.stitch_failed'), f"{translator.t('config_ui.stitch_process_error')}：\n{error_detail}", parent=root)
                 else:
-                    messagebox.showwarning("拼接失败", "拼接返回结果为空，请检查数据完整性", parent=root)
+                    messagebox.showwarning(translator.t('config_ui.stitch_failed'), translator.t('config_ui.stitch_result_empty'), parent=root)
             finally:
                 update_activity_status('tool', False)
                 root.destroy()
@@ -389,7 +427,7 @@ def on_image_stitch(icon, item):
             # Use a new root for the error box if the previous one is gone
             err_root = tk.Tk()
             err_root.withdraw()
-            messagebox.showerror("拼接失败", f"执行拼接时发生错误：\n{str(e)}", parent=err_root)
+            messagebox.showerror(translator.t('config_ui.stitch_failed'), f"{translator.t('config_ui.stitch_failed')}：\n{str(e)}", parent=err_root)
             err_root.destroy()
 
     threading.Thread(target=run_stitch, daemon=True).start()
@@ -421,7 +459,7 @@ def on_generate_gantt(icon, item):
             
             file_path = filedialog.askopenfilename(
                 parent=root,
-                title="选择日志文件生成甘特图",
+                title=translator.t('config_ui.gantt_select_file'),
                 initialdir=default_dir,
                 filetypes=[("Log files", "*.log"), ("All files", "*.*")]
             )
@@ -439,7 +477,7 @@ def on_generate_gantt(icon, item):
                 logger.info(f"Gantt PDF saved successfully: {pdf_output}")
                 # Open the directory to show the file
                 os.startfile(os.path.dirname(pdf_output))
-                messagebox.showinfo("生成成功", f"甘特图已保存为 PDF：\n{pdf_output}\n\n已自动为你打开目录。", parent=root)
+                messagebox.showinfo(translator.t('config_ui.gantt_success'), f"{translator.t('config_ui.gantt_success')}：\n{pdf_output}\n\n{translator.t('config_ui.gantt_dir_open')}", parent=root)
             
             root.destroy()
             
@@ -448,7 +486,7 @@ def on_generate_gantt(icon, item):
             # Use a temporary root for error message if needed
             err_root = tk.Tk()
             err_root.withdraw()
-            messagebox.showerror("错误", f"无法生成甘特图：\n{str(e)}", parent=err_root)
+            messagebox.showerror(translator.t('config_ui.gantt_failed'), f"{translator.t('config_ui.gantt_failed')}：\n{str(e)}", parent=err_root)
             err_root.destroy()
         finally:
             update_activity_status('tool', False)
@@ -461,10 +499,10 @@ def on_exit(icon, item):
     icon.stop()
 
 def get_start_stop_text(item):
-    return "一键停止" if is_started else "一键启动"
+    return translator.t('tray_menu.stop') if is_started else translator.t('tray_menu.start_stop')
 
 def get_capture_text(item):
-    return "采集停止" if is_cap_mode else "采集图像"
+    return translator.t('tray_menu.capture_stop') if is_cap_mode else translator.t('tray_menu.capture')
 
 def is_capture_enabled(item):
     # Disabled if normal start is active
@@ -478,21 +516,22 @@ def is_tools_enabled(item):
     # Disabled if system is started
     return not is_started
 
+def is_language_checked(lang_code):
+    def checked(item):
+        return translator.get_language() == lang_code
+    return checked
+
+def create_language_handler(lang_code):
+    def handler(icon, item):
+        on_change_language(lang_code)
+    return handler
+
 def setup_tray():
     global icon_instance
     load_icons()
     
-    menu = pystray.Menu(
-        pystray.MenuItem(get_start_stop_text, on_toggle_start_stop, enabled=is_start_stop_enabled),
-        pystray.MenuItem(get_capture_text, on_capture_image, enabled=is_capture_enabled),
-        pystray.MenuItem("图像拼接", on_image_stitch),
-        pystray.MenuItem("参数设置", on_config),
-        pystray.MenuItem("应用工具", pystray.Menu(
-            pystray.MenuItem("生成甘特", on_generate_gantt)
-        ), enabled=is_tools_enabled),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("退出", on_exit)
-    )
+    # Create initial tray menu with current language
+    menu = create_tray_menu()
     
     icon_instance = pystray.Icon(
         'vsDriverbox',
@@ -514,7 +553,7 @@ def setup_tray():
             old_icon = icon_instance.icon
             icon_instance.icon = ICONS['standby'] # 强制切换到 standby
             time.sleep(0.5) # 给 Windows 足够的系统时间来缓存这个新图标
-            icon_instance.notify("软件已成功启动并运行在后台", title="Vision Driver Box")
+            icon_instance.notify(translator.t('notifications.app_started'), title=translator.t('notifications.app_title'))
             time.sleep(2.0) # 保持时间加长，确保气泡弹出期间图标资源有效
             if not is_started:
                 icon_instance.icon = old_icon
@@ -537,7 +576,7 @@ if __name__ == '__main__':
             # Create a hidden root for the messagebox
             root = tk.Tk()
             root.withdraw()
-            messagebox.showwarning("程序已运行", "Vision Driver Box 已经在运行中。\n请在系统托盘查找图标。")
+            messagebox.showwarning(translator.t('config_ui.warning'), f"{translator.t('config_ui.app_running')}\n{translator.t('config_ui.app_running_hint')}")
             root.destroy()
             os._exit(0)
     except Exception as e:
@@ -557,6 +596,10 @@ if __name__ == '__main__':
 
     # 2. Sync global logger with loaded config
     logger.sync_config(config_context.config)
+    
+    # Load language setting
+    if "language" in config_context.config:
+        translator.set_language(config_context.config["language"])
 
     # 3. Setup system tray icon
     setup_tray()

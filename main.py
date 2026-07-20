@@ -28,7 +28,7 @@ from utils.gantt import generate_gantt_from_log
 from utils.i18n import translator
 
 # Global constants
-APP_VERSION = "1.0.9_Beta_01"
+APP_VERSION = "1.1.0_Beta_02"
 
 # Global states
 is_started = False

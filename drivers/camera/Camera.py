@@ -47,6 +47,7 @@ class Camera(object):
                  stitch_timeout=60,
                  calib_file=r"D:\vsDriverbox\calib.yaml",
                  cal_sel="旧版",
+                 export_calib_img=False,
                  # Board Settings
                  board_comm_addr="192.168.1.99",
                  board_comm_port=502,
@@ -135,7 +136,7 @@ class Camera(object):
 
         self.__StTQ_inf = queue.Queue()
         self.__StTQ_img = queue.Queue()
-        self.__stitch = Camera.ImageStitch(x_base_L=int(stitch_left_ref), x_base_R=int(stitch_right_ref), x_invert=int(img_stitch_offset), canvas_start=int(canvas_start_pos), canvas_width=self.__canvas_width, DPI=self.__Image_DPI, hold_pix=int(overlap_offset_pix), YamlPath=calib_file, log_cb=self.log_cb, cal_sel=cal_sel)
+        self.__stitch = Camera.ImageStitch(x_base_L=int(stitch_left_ref), x_base_R=int(stitch_right_ref), x_invert=int(img_stitch_offset), canvas_start=int(canvas_start_pos), canvas_width=self.__canvas_width, DPI=self.__Image_DPI, hold_pix=int(overlap_offset_pix), YamlPath=calib_file, log_cb=self.log_cb, cal_sel=cal_sel, export_calib_img=export_calib_img)
         threading.Thread(target=self.__St_Thread, daemon=True).start()
         threading.Thread(target=self.__Dt_Thread, daemon=True).start()
 
@@ -209,10 +210,7 @@ class Camera(object):
             for idx, h in enumerate(h_Pix_List): 
                 img = Image.new("RGB", (width_px, h), (255, 255, 255))  # Pure white 
                 
-                if len(h_Pix_List) > 1:
-                    file_name = f"000_{idx+1:03d}.tif"
-                else:
-                    file_name = "000.tif"
+                file_name = f"{idx}.tif"
                     
                 file_path = os.path.join(save_path, file_name)
                 img.save(file_path, dpi=(dpi_value, dpi_value), photometric="rgb")
@@ -235,13 +233,14 @@ class Camera(object):
         """Get current image stitching timeout setting (in seconds)"""
         return self.__stitch_timeout
 
-    def stitch_from_json(self, file_path:str, file_name:str= "LocalImageInfos.json") -> np.ndarray:
+    def stitch_from_json(self, file_path:str, file_name:str= "LocalImageInfos.json", export_calib_img:bool=None) -> np.ndarray:
         """ Stitching images from JSON file (Wrapper)
         :param file_path: Directory containing JSON and images
         :param file_name: JSON file name
+        :param export_calib_img: Whether to export calibrated images
         :return: Stitched canvas as numpy array
         """
-        return self.__stitch.stitch_from_json(file_path, file_name)
+        return self.__stitch.stitch_from_json(file_path, file_name, export_calib_img)
 
     def start(self):
         """Start camera: Open device, create stream, connect to data server, and start acquisition.
@@ -954,7 +953,7 @@ class Camera(object):
             Direction: bool
             MotionStartPoint: float
 
-        def __init__(self, x_base_L:int = 2461790, x_base_R:int = 29057700, x_invert:int = 629, canvas_start = 7906, canvas_width:int = 21259, DPI:int = 300, hold_pix:int=500, YamlPath=None, log_cb=None, cal_sel="旧版") -> None:
+        def __init__(self, x_base_L:int = 2461790, x_base_R:int = 29057700, x_invert:int = 629, canvas_start = 7906, canvas_width:int = 21259, DPI:int = 300, hold_pix:int=500, YamlPath=None, log_cb=None, cal_sel="旧版", export_calib_img=False) -> None:
             """ ImageStitch init
             :param x_base_L: X left base position
             :param x_base_R: X right base position
@@ -966,6 +965,7 @@ class Camera(object):
             :param YamlPath: YAML path for calib
             :param log_cb: log callback
             :param cal_sel: calibration selection ("旧版" or "新版")
+            :param export_calib_img: whether to export calibrated images
             :return:None
             :raises None
             :note : Yaml file SHALL BE loaded (by load_calib_yaml()) before any stitch function used
@@ -988,6 +988,7 @@ class Camera(object):
             self.__params = None
 
             self.__calsel = True if cal_sel == "新版" else False
+            self.__export_calib_img = export_calib_img
 
         def load_calib_yaml(self) -> bool:
             if self.__YamlPath and os.path.exists(self.__YamlPath):
@@ -1080,19 +1081,44 @@ class Camera(object):
 
             return fresh.copy(), forward
 
-        def stitch_from_json(self, file_path:str, file_name:str= "LocalImageInfos.json") -> np.ndarray:
+        def stitch_from_json(self, file_path:str, file_name:str= "LocalImageInfos.json", export_calib_img:bool=None) -> np.ndarray:
             """ Stitching images from JSON file
-            :param file_path:
-            :param file_name:
+            :param file_path: Directory containing JSON and images
+            :param file_name: JSON file name
+            :param export_calib_img: Whether to export calibrated images (if None, use instance setting)
             :return: canvas in type 'np.ndarray'
             :raises Exception on error
             :notes: The file is a List JSON and at least one image
             """
-
+            # Determine if we need to export calibrated images
+            do_export = export_calib_img if export_calib_img is not None else self.__export_calib_img
+            
             self.__StepCopy = 0
 
             with open(os.path.join(file_path, file_name), 'r', encoding='utf-8') as f:
                 file = json.load(f)
+
+            # Prepare Image_Calib directory if needed
+            calib_dir = os.path.join(file_path, "Image_Calib")
+            if do_export:
+                # Clear and create Image_Calib directory
+                if os.path.exists(calib_dir):
+                    # Delete all files in the directory
+                    for filename in os.listdir(calib_dir):
+                        file_path_del = os.path.join(calib_dir, filename)
+                        try:
+                            if os.path.isfile(file_path_del):
+                                os.unlink(file_path_del)
+                        except Exception as e:
+                            if self.__log_cb:
+                                self.__log_cb(f"Camera: Error deleting {file_path_del}: {e}")
+                else:
+                    # Create directory
+                    try:
+                        os.makedirs(calib_dir, exist_ok=True)
+                    except Exception as e:
+                        if self.__log_cb:
+                            self.__log_cb(f"Camera: Error creating {calib_dir}: {e}")
 
             image_List = []
             for _, item in enumerate(file):
@@ -1102,6 +1128,24 @@ class Camera(object):
 
                 with Image.open(os.path.join(file_path, _Info.ImagePath)) as img:
                     _image_ = np.array(img)
+                    
+                    # Apply calibration if needed
+                    if do_export:
+                        # Perform calibration
+                        if _Info.Direction:
+                            _image_calib = self.calibration(_image_, self.__params)
+                        else:
+                            _image_calib = self.calibration(_image_[::-1, ...], self.__params)
+                        
+                        # Save calibrated image to Image_Calib directory with same name
+                        calib_image_path = os.path.join(calib_dir, os.path.basename(_Info.ImagePath))
+                        try:
+                            Image.fromarray(_image_calib).save(calib_image_path)
+                            if self.__log_cb:
+                                self.__log_cb(f"Camera: Saved calibrated image: {calib_image_path}")
+                        except Exception as e:
+                            if self.__log_cb:
+                                self.__log_cb(f"Camera: Error saving calibrated image {calib_image_path}: {e}")
 
                     _image, _ = self.stitch_from_ram(_image=_image_, Step=_Info.Step, Direction=_Info.Direction, MotionStartPoint=_Info.MotionStartPoint)
                     image_List.append(_image)

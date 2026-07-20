@@ -64,7 +64,8 @@ class ConfigContext(object):
             "canvas_end_pos": "21259",
             "overlap_offset_pix": "500",
             "stitch_timeout": "60",
-            "language": "zh_CN"
+            "language": "zh_CN",
+            "export_calib_img": False
         }
         # Define synchronization events for business threads
         self.events = {

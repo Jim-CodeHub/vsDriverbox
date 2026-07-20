@@ -237,6 +237,7 @@ class ConfigUI(object):
         self._add_entry(stitch_frame, translator.t('config_ui.dpi') + ":", "300", 6, key="dpi", vcmd=self.v_int)
         self._add_dropdown(stitch_frame, translator.t('config_ui.cal_sel') + ":", [translator.t('options.old_version'), translator.t('options.new_version')], 7, key="cal_sel", callback=self._on_cal_sel_change)
         self._add_entry(stitch_frame, translator.t('config_ui.stitch_timeout') + ":", "60", 8, unit=translator.t('config_ui.unit.s'), key="stitch_timeout", vcmd=self.v_int)
+        self._add_checkbox(stitch_frame, translator.t('config_ui.export_calib_img') + ":", 9, key="export_calib_img")
         
         # Add trace-like behavior for real-time update
         self.entries["print_width"].bind("<KeyRelease>", lambda e: self._update_canvas_end_pos())

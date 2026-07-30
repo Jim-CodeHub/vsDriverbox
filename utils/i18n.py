@@ -103,6 +103,8 @@ class Translator(object):
                 "dpi": "DPI",
                 "cal_sel": "校准程序选择",
                 "stitch_timeout": "图像拼接超时",
+                "export_calib_img": "导出校准图像",
+                "realtime_display": "采集实时显示",
                 "board_comm_addr": "通讯地址设置",
                 "board_comm_port": "通讯端口设置",
                 "board_comm_timeout": "通讯超时设置",
@@ -231,6 +233,8 @@ class Translator(object):
                 "dpi": "DPI",
                 "cal_sel": "Calibration Selection",
                 "stitch_timeout": "Stitch Timeout",
+                "export_calib_img": "Export Calibrated Image",
+                "realtime_display": "Capture Real-time Display",
                 "board_comm_addr": "Board Communication Address",
                 "board_comm_port": "Board Communication Port",
                 "board_comm_timeout": "Board Communication Timeout",
@@ -359,6 +363,8 @@ class Translator(object):
                 "dpi": "DPI",
                 "cal_sel": "Lựa chọn chương trình hiệu chỉnh",
                 "stitch_timeout": "Thời gian chờ ghép ảnh",
+                "export_calib_img": "Xuất ảnh hiệu chỉnh",
+                "realtime_display": "Hiển thị thời gian thực",
                 "board_comm_addr": "Địa chỉ giao tiếp bo mạch",
                 "board_comm_port": "Cổng giao tiếp bo mạch",
                 "board_comm_timeout": "Thời gian chờ giao tiếp bo mạch",
@@ -379,7 +385,7 @@ class Translator(object):
                 "import_failed": "Tải cấu hình thất bại",
                 "invalid_config": "Tệp cấu hình không hợp lệ: không khớp tiêu đề hoặc lỗi định dạng.",
                 "warning": "Cảnh báo",
-                "cal_switch_warning": "Đã chuyển chương trình hiệu chỉnh, vui lòng cập nhật tệp hiệu chỉnh tương ứng!",
+                "cal_switch_warning": "Đã chuyển chương trình hiệu chỉnh, vui lòng cập nhật tệp hiệu chỉnh tương ứng!或者",
                 "light_control_error": "Điều khiển đèn thất bại",
                 "light_brightness_error": "Đặt độ sáng đèn thất bại",
                 "light_switch_error": "Đặt công tắc đèn thất bại",
@@ -415,13 +421,13 @@ class Translator(object):
             }
         }
     }
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(Translator, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-    
+
     def __init__(self):
         if self._initialized:
             return
@@ -429,7 +435,7 @@ class Translator(object):
         self._current_lang = "zh_CN"
         self._translations = self.DEFAULT_TRANSLATIONS.copy()
         self._load_translations()
-    
+
     def _get_translations_path(self):
         """Get the path to translations.yaml file"""
         try:
@@ -440,7 +446,7 @@ class Translator(object):
             return os.path.join(base_dir, "translations.yaml")
         except Exception:
             return None
-    
+
     def _load_translations(self):
         """Load translations from YAML file if available"""
         translations_path = self._get_translations_path()
@@ -455,7 +461,7 @@ class Translator(object):
                                 self._deep_update(self._translations[lang], file_translations[lang])
             except Exception:
                 pass
-    
+
     def _deep_update(self, d: Dict, u: Dict):
         """Deep update dictionary"""
         for k, v in u.items():
@@ -463,23 +469,23 @@ class Translator(object):
                 self._deep_update(d[k], v)
             else:
                 d[k] = v
-    
+
     def set_language(self, lang_code: str):
         """Set current language"""
         if lang_code in self.LANGUAGES:
             self._current_lang = lang_code
-    
+
     def get_language(self) -> str:
         """Get current language code"""
         return self._current_lang
-    
+
     def get_language_name(self) -> str:
         """Get current language display name"""
         return self.LANGUAGES.get(self._current_lang, self._current_lang)
-    
+
     def t(self, key: str, **kwargs) -> str:
         """Get translated text by key
-        
+
         :param key: Translation key (e.g., "tray_menu.start_stop")
         :param kwargs: Format arguments
         :return: Translated text
@@ -498,7 +504,7 @@ class Translator(object):
                     else:
                         return key
                 break
-        
+
         if isinstance(value, str):
             try:
                 return value.format(**kwargs)

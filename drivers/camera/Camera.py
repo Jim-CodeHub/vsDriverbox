@@ -62,6 +62,8 @@ class Camera(object):
                  # Log Save Image Settings
                  log_img_mode=False,
                  log_img_dir=r"D:\vsDriverbox\log\img",
+                 realtime_display_enabled=False,
+                 image_queue=None, # Add image_queue parameter
                  # Callbacks
                  log_cb=None,
                  fatal_error_cb=None,
@@ -92,6 +94,8 @@ class Camera(object):
 
         self.__log_img_mode = bool(log_img_mode)
         self.__log_img_dir = log_img_dir
+        self.__realtime_display_enabled = bool(realtime_display_enabled)
+        self.__image_queue = image_queue # Store image_queue
         
         # 2. Stitching Settings
         self.__canvas_width = int(canvas_end_pos)
@@ -857,6 +861,13 @@ class Camera(object):
 
                     self._log(f"Cap mode Image saved[{self.__frameEcnt}], path={img_path}")
                     self.__frameEcnt += 1
+
+                    if self.__realtime_display_enabled and self.__image_queue:
+                        self._log("Put image to realtime display queue")
+
+                        fresh, y_step = self.__stitch.stitch_from_ram(_image=image, Step=_Info["Step"], Direction=_Info["Direction"], MotionStartPoint=_Info["MotionStartPoint"])
+
+                        self.__image_queue.put(fresh.copy())
                 else:
                     self._log(f"Stitching...image={image.shape}, Step={_Info['Step']}, Direction={_Info['Direction']}, MotionStartPoint={_Info['MotionStartPoint']} ")
 
@@ -1068,6 +1079,7 @@ class Camera(object):
             """
             t_start = time.perf_counter()
             _image_ = self.calibration(_image, self.__params) if Direction else self.calibration(_image[::-1, ...], self.__params)
+
             t_end = time.perf_counter()
 
             if self.__log_cb:

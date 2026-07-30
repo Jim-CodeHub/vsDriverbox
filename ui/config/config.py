@@ -216,11 +216,12 @@ class ConfigUI(object):
         self._add_entry(cam_settings_frame, translator.t('config_ui.data_recv_port') + ":", "9120", 2, key="data_recv_port", vcmd=self.v_int)
         self._add_entry(cam_settings_frame, translator.t('config_ui.capture_img_len') + ":", "100", 3, unit=translator.t('config_ui.unit.cm'), key="capture_img_len", vcmd=self.v_float)
         self._add_entry(cam_settings_frame, translator.t('config_ui.capture_img_height') + ":", "2048", 4, unit=translator.t('config_ui.unit.pix'), key="capture_img_height", vcmd=self.v_int)
-        self._add_browse_entry(cam_settings_frame, translator.t('config_ui.calib_file') + ":", 5, is_file=True, default_val=r"D:\vsDriverbox\calib.yaml", key="calib_file", filetypes=[("YAML files", "*.yaml"), ("All files", "*.*")])
-        self._add_browse_entry(cam_settings_frame, translator.t('config_ui.capture_save_dir') + ":", 6, default_val=r"D:\vsDriverbox\cap", key="capture_save_dir")
-        self._add_browse_entry(cam_settings_frame, translator.t('config_ui.rip_send_dir') + ":", 7, default_val=r"D:\vsDriverbox\rip", show_status=False, key="rip_send_dir")
-        self._add_entry(cam_settings_frame, translator.t('config_ui.cap_line_timeout') + ":", "5000", 8, unit=translator.t('config_ui.unit.ms'), key="cap_line_timeout", vcmd=self.v_int)
-        self._add_entry(cam_settings_frame, translator.t('config_ui.cap_frame_timeout') + ":", "0", 9, unit=translator.t('config_ui.unit.ms'), key="cap_frame_timeout", vcmd=self.v_int)
+        self._add_checkbox(cam_settings_frame, translator.t('config_ui.realtime_display') + ":", 5, key="realtime_display_enabled")
+        self._add_browse_entry(cam_settings_frame, translator.t('config_ui.calib_file') + ":", 6, is_file=True, default_val=r"D:\vsDriverbox\calib.yaml", key="calib_file", filetypes=[("YAML files", "*.yaml"), ("All files", "*.*")])
+        self._add_browse_entry(cam_settings_frame, translator.t('config_ui.capture_save_dir') + ":", 7, default_val=r"D:\vsDriverbox\cap", key="capture_save_dir")
+        self._add_browse_entry(cam_settings_frame, translator.t('config_ui.rip_send_dir') + ":", 8, default_val=r"D:\vsDriverbox\rip", show_status=False, key="rip_send_dir")
+        self._add_entry(cam_settings_frame, translator.t('config_ui.cap_line_timeout') + ":", "5000", 9, unit=translator.t('config_ui.unit.ms'), key="cap_line_timeout", vcmd=self.v_int)
+        self._add_entry(cam_settings_frame, translator.t('config_ui.cap_frame_timeout') + ":", "0", 10, unit=translator.t('config_ui.unit.ms'), key="cap_frame_timeout", vcmd=self.v_int)
         
         # 3.2 Stitching Settings
         stitch_frame = ttk.LabelFrame(col1, text=translator.t('config_ui.stitch_settings'), padding="5")

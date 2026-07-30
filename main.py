@@ -26,9 +26,41 @@ from utils.utils import logger, get_resource_path
 from utils.mp_helper import ProcessProxy
 from utils.gantt import generate_gantt_from_log
 from utils.i18n import translator
+from ui.realtime_display.RealtimeDisplayQt import run_viewer as run_qt_viewer # New import
+
+# Global multiprocessing objects for the Qt viewer
+qt_viewer_process = None
+image_queue = None
+
+def start_qt_viewer_process():
+    global qt_viewer_process, image_queue
+    if qt_viewer_process is None or not qt_viewer_process.is_alive():
+        logger.info("Starting Real-time Qt Viewer process...")
+        image_queue = multiprocessing.Queue() # Use multiprocessing.Queue
+        qt_viewer_process = multiprocessing.Process(target=run_qt_viewer, args=(image_queue,))
+        qt_viewer_process.start()
+        logger.info(f"Real-time Qt Viewer process started with PID: {qt_viewer_process.pid}")
+    else:
+        logger.warning("Real-time Qt Viewer process is already running.")
+
+def stop_qt_viewer_process():
+    global qt_viewer_process, image_queue
+    if qt_viewer_process and qt_viewer_process.is_alive():
+        logger.info("Stopping Real-time Qt Viewer process...")
+        if image_queue:
+            image_queue.put(None) # Send sentinel to gracefully shut down the receiver thread
+        qt_viewer_process.join(timeout=5) # Give it some time to shut down
+        if qt_viewer_process.is_alive():
+            logger.warning("Real-time Qt Viewer process did not terminate gracefully, forcing termination.")
+            qt_viewer_process.terminate()
+        qt_viewer_process = None
+        image_queue = None
+        logger.info("Real-time Qt Viewer process stopped.")
+    else:
+        logger.info("Real-time Qt Viewer process is not running.")
 
 # Global constants
-APP_VERSION = "1.1.0_Beta_02"
+APP_VERSION = "1.1.1_Beta_03"
 
 # Global states
 is_started = False
@@ -175,9 +207,11 @@ def create_camera_instance(fatal_error_cb=None, status_cb=None):
         light_use_enabled=config.get('light_use_enabled', True),
         log_img_mode=config.get('log_img_mode', False),
         log_img_dir=config.get('log_img_dir', r"D:\vsDriverbox\log\img"),
+        realtime_display_enabled=config.get('realtime_display_enabled', False),
         log_cb=logger.info,
         fatal_error_cb=fatal_error_cb,
-        status_cb=status_cb
+        status_cb=status_cb,
+        image_queue = image_queue 
     )
 
 def start_system(is_capture=False):
@@ -233,6 +267,10 @@ def start_system(is_capture=False):
         if not success:
             raise Exception(err)
 
+        # Start Real-time Qt Viewer if enabled
+        if config.get('realtime_display_enabled', False):
+            start_qt_viewer_process()
+
         return True, None
     except Exception as e:
         # Cleanup on failure
@@ -258,6 +296,7 @@ def stop_system():
     except Exception as e:
         logger.error(f"Error during system stop: {e}")
     finally:
+        stop_qt_viewer_process() # Ensure Qt viewer process is stopped
         camera_instance = None
         printer_instance = None
         is_started = False

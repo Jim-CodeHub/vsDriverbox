@@ -1,0 +1,12 @@
+matplotlib
+numpy
+opencv_python==4.13.0.92
+Pillow
+pymodbus
+PyQt5
+PyQt5_sip
+pyserial
+pystray
+PyYAML
+scipy
+tifffile

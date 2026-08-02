@@ -31,12 +31,20 @@ from ui.realtime_display.RealtimeDisplayQt import run_viewer as run_qt_viewer # 
 # Global multiprocessing objects for the Qt viewer
 qt_viewer_process = None
 image_queue = None
+manager = None
 
 def start_qt_viewer_process():
-    global qt_viewer_process, image_queue
+    global qt_viewer_process, image_queue, manager
     if qt_viewer_process is None or not qt_viewer_process.is_alive():
         logger.info("Starting Real-time Qt Viewer process...")
-        image_queue = multiprocessing.Queue() # Use multiprocessing.Queue
+        # Use a multiprocessing.Manager to create a Queue proxy that is safe to share
+        if manager is None:
+            manager = multiprocessing.Manager()
+            logger.info(f"Realtime multiprocessing.Manager created: {manager}")
+
+        image_queue = manager.Queue()
+        logger.info(f"Realtime display queue created: {image_queue}")
+
         qt_viewer_process = multiprocessing.Process(target=run_qt_viewer, args=(image_queue,))
         qt_viewer_process.start()
         logger.info(f"Real-time Qt Viewer process started with PID: {qt_viewer_process.pid}")
@@ -44,23 +52,37 @@ def start_qt_viewer_process():
         logger.warning("Real-time Qt Viewer process is already running.")
 
 def stop_qt_viewer_process():
-    global qt_viewer_process, image_queue
+    global qt_viewer_process, image_queue, manager
     if qt_viewer_process and qt_viewer_process.is_alive():
         logger.info("Stopping Real-time Qt Viewer process...")
-        if image_queue:
-            image_queue.put(None) # Send sentinel to gracefully shut down the receiver thread
+        if image_queue is not None:
+            try:
+                image_queue.put(None) # Send sentinel to gracefully shut down the receiver thread
+            except Exception:
+                logger.warning("Failed to put sentinel into image_queue")
+
         qt_viewer_process.join(timeout=5) # Give it some time to shut down
         if qt_viewer_process.is_alive():
             logger.warning("Real-time Qt Viewer process did not terminate gracefully, forcing termination.")
             qt_viewer_process.terminate()
         qt_viewer_process = None
+
+        # Shutdown the manager and clear the proxy queue
+        if manager is not None:
+            try:
+                manager.shutdown()
+                logger.info("Realtime multiprocessing.Manager shutdown")
+            except Exception:
+                logger.warning("Failed to shutdown multiprocessing.Manager")
+            manager = None
+
         image_queue = None
         logger.info("Real-time Qt Viewer process stopped.")
     else:
         logger.info("Real-time Qt Viewer process is not running.")
 
 # Global constants
-APP_VERSION = "1.1.1_Beta_03"
+APP_VERSION = "1.1.1_Beta_06"
 
 # Global states
 is_started = False
@@ -175,6 +197,7 @@ def icon_animation_thread():
 def create_camera_instance(fatal_error_cb=None, status_cb=None):
     """Helper to create a Camera instance wrapped in a ProcessProxy."""
     config = config_context.config
+    logger.info(f"Passing image_queue to Camera: {image_queue}")
     return ProcessProxy(
         Camera,
         cam_buffer_count=config.get('cam_buffer_count', 10),
@@ -225,7 +248,11 @@ def start_system(is_capture=False):
         
         logger.info(f"Starting system (Capture Mode: {is_capture}) with current configuration...")
 
-        # 1. Instantiate Camera
+        # 1. Start Real-time Qt Viewer if enabled before camera creation
+        if config.get('realtime_display_enabled', False):
+            start_qt_viewer_process()
+
+        # 2. Instantiate Camera
         try:
             camera_instance = create_camera_instance(
                 fatal_error_cb=on_fatal_error,
@@ -233,9 +260,11 @@ def start_system(is_capture=False):
             )
         except Exception as e:
             logger.error(f"Failed to create camera instance: {e}")
+            if config.get('realtime_display_enabled', False):
+                stop_qt_viewer_process()
             return False, f"相机驱动初始化失败: {str(e)}"
 
-        # 2. Instantiate Printer
+        # 3. Instantiate Printer
         printer_instance = ProcessProxy(
             Printer,
             listen_mode=config.get('listen_mode', "TCP/IP"),
@@ -266,10 +295,6 @@ def start_system(is_capture=False):
         success, err = printer_instance.start()
         if not success:
             raise Exception(err)
-
-        # Start Real-time Qt Viewer if enabled
-        if config.get('realtime_display_enabled', False):
-            start_qt_viewer_process()
 
         return True, None
     except Exception as e:
@@ -642,3 +667,25 @@ if __name__ == '__main__':
 
     # 3. Setup system tray icon
     setup_tray()
+
+
+# if __name__ == "__main__":
+
+#     start_qt_viewer_process()
+
+#     #Generate a simple green square image after a delay
+#     import threading
+#     def push_another_image():
+#         cnt = 0
+#         while(True):
+#             time.sleep(2)
+#             print("push working")
+#             dummy_image_2 = np.full((300, 300), 200, dtype=np.uint8) # Light gray
+#             image_queue.put(dummy_image_2)  # Use the global image_queue for the Qt viewer
+#             cnt = cnt + 1
+#             if cnt > 10:
+#                 break
+#     threading.Thread(target=push_another_image).start()
+
+#     while(True):
+#         time.sleep(1)

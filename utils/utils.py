@@ -137,6 +137,9 @@ class Logger:
     def warn(self, msg):
         self.logger.warning(msg)
 
+    def warning(self, msg):
+        self.logger.warning(msg)
+
 
 # Global instances
 logger = Logger()

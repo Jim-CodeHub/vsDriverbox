@@ -862,7 +862,7 @@ class Camera(object):
                     self._log(f"Cap mode Image saved[{self.__frameEcnt}], path={img_path}")
                     self.__frameEcnt += 1
 
-                    if self.__realtime_display_enabled and self.__image_queue:
+                    if self.__realtime_display_enabled and self.__image_queue is not None:
                         self._log("Put image to realtime display queue")
 
                         fresh, y_step = self.__stitch.stitch_from_ram(_image=image, Step=_Info["Step"], Direction=_Info["Direction"], MotionStartPoint=_Info["MotionStartPoint"])

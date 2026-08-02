@@ -9,6 +9,7 @@ from utils.utils import logger # Import logger
 
 # For IPC
 from multiprocessing import Queue
+import queue
 import time # For simulation
 
 class ImageReceiverThread(QThread):
@@ -21,17 +22,64 @@ class ImageReceiverThread(QThread):
 
     def run(self):
         while self._running:
-            if not self.image_queue.empty():
-                image_data = self.image_queue.get()
-                if image_data is None: # Sentinel for shutdown
-                    self._running = False
-                    break
-                self.image_received.emit(image_data)
-            time.sleep(0.01) # Small delay to prevent busy-waiting
+            try:
+                image_data = self.image_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+
+            if image_data is None: # Sentinel for shutdown
+                self._running = False
+                break
+
+            self.image_received.emit(image_data)
 
     def stop(self):
         self._running = False
         self.wait() # Wait for the thread to finish execution
+
+class ImageGraphicsView(QGraphicsView):
+    def __init__(self, scene, parent=None):
+        super().__init__(scene, parent)
+        self.setDragMode(QGraphicsView.NoDrag)
+        self.setCursor(Qt.ArrowCursor)
+        self._pan_active = False
+        self._pan_start = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._pan_active = True
+            self._pan_start = event.pos()
+            self.setCursor(Qt.ClosedHandCursor)
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._pan_active and self._pan_start is not None:
+            delta = event.pos() - self._pan_start
+            self._pan_start = event.pos()
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._pan_active = False
+            self._pan_start = None
+            self.setCursor(Qt.ArrowCursor)
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
+
+    def wheelEvent(self, event):
+        factor = 1.2
+        if event.angleDelta().y() > 0:
+            self.scale(factor, factor)
+        else:
+            self.scale(1 / factor, 1 / factor)
+        event.accept()
 
 class RealtimeImageViewer(QMainWindow):
     def __init__(self, image_queue: Queue = None):
@@ -40,9 +88,9 @@ class RealtimeImageViewer(QMainWindow):
         self.setGeometry(100, 100, 800, 600)
 
         self.scene = QGraphicsScene(self)
-        self.view = QGraphicsView(self.scene)
+        self.view = ImageGraphicsView(self.scene)
         self.view.setRenderHint(QPainter.Antialiasing)
-        self.view.setDragMode(QGraphicsView.ScrollHandDrag)
+        self.view.setCursor(Qt.ArrowCursor)
         self.view.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
 
         self.image_item = None
@@ -61,12 +109,12 @@ class RealtimeImageViewer(QMainWindow):
 
         # Mouse tracking for coordinates
         self.view.setMouseTracking(True)
-        # Override the original mouseMoveEvent, but make sure to call the base class too
-        self.view.mouseMoveEvent = self._custom_mouse_move_event 
+        self.view.coord_callback = self._custom_mouse_move_event
 
         self.image_queue = image_queue
-        if self.image_queue:
-            logger.info(f"Create ImageReciverThread")
+        logger.info(f"RealtimeImageViewer received queue: {self.image_queue}")
+        if self.image_queue is not None:
+            logger.info("Create ImageReciverThread")
             self.receiver_thread = ImageReceiverThread(self.image_queue)
             self.receiver_thread.image_received.connect(self.update_image_from_numpy)
             self.receiver_thread.start()
@@ -168,24 +216,3 @@ def run_viewer(image_queue: Queue = None):
     viewer = RealtimeImageViewer(image_queue)
     viewer.show()
     sys.exit(app.exec_())
-
-if __name__ == "__main__":
-    # Example usage for standalone testing:
-    # Create a dummy queue and push some dummy images
-    dummy_queue = Queue()
-    
-    # Generate a simple gray square image
-    dummy_image = np.full((300, 300), 128, dtype=np.uint8) # Medium gray
-    dummy_queue.put(dummy_image)
-
-    #Generate a simple green square image after a delay
-    import threading
-    def push_another_image():
-        while(True):
-            time.sleep(2)
-            print("push working")
-            dummy_image_2 = np.full((300, 300), 200, dtype=np.uint8) # Light gray
-            dummy_queue.put(dummy_image_2)
-    threading.Thread(target=push_another_image).start()
-
-    run_viewer(dummy_queue)

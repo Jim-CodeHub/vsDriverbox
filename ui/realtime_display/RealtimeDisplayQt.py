@@ -55,6 +55,11 @@ class ImageGraphicsView(QGraphicsView):
             super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        # Report image coordinates for every pointer movement, including while panning.
+        coord_callback = getattr(self, "coord_callback", None)
+        if coord_callback:
+            coord_callback(event)
+
         if self._pan_active and self._pan_start is not None:
             delta = event.pos() - self._pan_start
             self._pan_start = event.pos()
@@ -148,8 +153,6 @@ class RealtimeImageViewer(QMainWindow):
                 self.status_label.setText("X: -, Y: -")
         else:
             self.status_label.setText("X: -, Y: -")
-        # Call the original QGraphicsView's mouseMoveEvent for internal handling (e.g., ScrollHandDrag)
-        QGraphicsView.mouseMoveEvent(self.view, event)
 
     def _save_image(self):
         if not self.image_item:

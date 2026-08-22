@@ -862,6 +862,8 @@ class Camera(object):
                     self._log(f"Cap mode Image saved[{self.__frameEcnt}], path={img_path}")
                     self.__frameEcnt += 1
 
+                    self._log(f"Stitching...image={image.shape}, Step={_Info['Step']}, Direction={_Info['Direction']}, MotionStartPoint={_Info['MotionStartPoint']} ")
+
                     if self.__realtime_display_enabled and self.__image_queue is not None:
                         self._log("Put image to realtime display queue")
 
@@ -1067,7 +1069,7 @@ class Camera(object):
 
             return fresh
 
-        def stitch_from_ram(self, _image:np.ndarray, Step:float, Direction:bool, MotionStartPoint:float) -> (np.ndarray, int):
+        def stitch_from_ram(self, _image:np.ndarray, Step:float, Direction:bool, MotionStartPoint:float) -> tuple[np.ndarray, int]:
             """ Stitching images from ram
             :param _image: image to stitch
             :param Step: Y axis steps
@@ -1387,7 +1389,7 @@ class Camera(object):
 
             return False if data is None or data != '$OK#' or data == '$NG#' else True
 
-        def get_brightness(self) -> (bool, list):
+        def get_brightness(self) -> tuple[bool, list[str]]:
             """Get brightness of light.
 
             :param:
@@ -1429,7 +1431,7 @@ class Camera(object):
 
                 return False if data is None or data != '$OK#' or data == '$NG#' else True
 
-        def get_strobe(self) -> (bool, list):
+        def get_strobe(self) -> tuple[bool, list[str]]:
             """Get strobe of light.
 
             :param:
@@ -1470,7 +1472,7 @@ class Camera(object):
 
                 return False if data is None or data != '$OK#' or data == '$NG#' else True
 
-        def get_voltage(self) -> (bool, list):
+        def get_voltage(self) -> tuple[bool, list[str]]:
             """Get voltage of light.
 
             :param:
@@ -1511,7 +1513,7 @@ class Camera(object):
 
                 return False if data is None or data != '$OK#' or data == '$NG#' else True
 
-        def get_switch(self) -> (bool, list):
+        def get_switch(self) -> tuple[bool, list[str]]:
             """Get switch of light.
 
             :param:

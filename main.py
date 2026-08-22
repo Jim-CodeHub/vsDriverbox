@@ -82,7 +82,7 @@ def stop_qt_viewer_process():
         logger.info("Real-time Qt Viewer process is not running.")
 
 # Global constants
-APP_VERSION = "1.1.1_Beta_06"
+APP_VERSION = "1.1.1_Beta_07"
 
 # Global states
 is_started = False

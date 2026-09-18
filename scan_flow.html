@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>扫描拼接流程可视化 · 布不动 相机动</title>
+<style>
+:root{
+  --bg:#0e1117; --panel:#161b24; --line:#2a3140; --txt:#e6edf3; --dim:#8b96a5;
+  --cloth:#c9a227; --cloth2:#e3bb4a;
+  --scan:#22d3ee; --scanfill:rgba(34,211,238,.18);
+  --dark:#3d4657; --darkfill:rgba(120,132,152,.16);
+  --cam:#ff5a4d; --ok:#4ade80; --warn:#fbbf24; --fwd:#60a5fa; --rev:#f472b6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+h1{font-size:17px;margin:0 0 2px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px}
+.wrap{padding:14px 18px 40px;max-width:1560px;margin:0 auto}
+.grid{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.panel h2{font-size:13px;margin:0 0 8px;color:var(--txt);
+  display:flex;justify-content:space-between;align-items:center}
+.tag{font-size:11px;color:var(--dim);font-weight:400}
+
+/* 控制条 */
+.ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+button{background:#1f2937;color:var(--txt);border:1px solid var(--line);
+  padding:7px 15px;border-radius:7px;cursor:pointer;font-size:13px}
+button:hover:not(:disabled){background:#2b3648;border-color:#3f4a5e}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.p{background:#1d4ed8;border-color:#2563eb}
+button.p:hover:not(:disabled){background:#2563eb}
+.bar{height:5px;background:#1f2937;border-radius:3px;overflow:hidden;flex:1;min-width:120px}
+.bar i{display:block;height:100%;background:var(--scan);width:0;transition:width .1s linear}
+.cnt{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12px}
+
+svg{display:block;width:100%;height:auto}
+text{font-family:-apple-system,"PingFang SC",sans-serif}
+
+/* 数据面板 */
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td{padding:3px 0;border-bottom:1px solid #1e2531}
+td:first-child{color:var(--dim);width:44%}
+td:last-child{text-align:right;font-weight:600}
+.mono{font-family:"SF Mono",Consolas,monospace}
+.grp{margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+.grp:last-child{border:0}
+.grp .t{font-size:11px;color:var(--dim);margin-bottom:4px;letter-spacing:.5px}
+.fwd{color:var(--fwd)} .rev{color:var(--rev)}
+.ok{color:var(--ok)} .warn{color:var(--warn)} .dim{color:var(--dim)}
+
+/* 画布条 */
+#canvasWrap{max-height:340px;overflow-y:auto;background:#0a0d13;
+  border:1px solid var(--line);border-radius:6px;padding:6px;position:relative}
+#cv{width:100%;display:block}
+.note{font-size:11.5px;color:var(--dim);margin-top:8px;line-height:1.7}
+.note b{color:var(--txt)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-top:8px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;
+  margin-right:4px;vertical-align:-1px}
+/* 帧内取窗 */
+#freshSvg{width:100%}
+.frlist{max-height:150px;overflow-y:auto;font-size:11.5px}
+.frlist div{padding:2px 6px;border-radius:3px;cursor:pointer;font-variant-numeric:tabular-nums}
+.frlist div:hover{background:#1f2937}
+.frlist .cur{background:#1d4ed8}
+.frlist .done{color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>扫描拼接流程可视化 —— 布不动，相机动</h1>
+  <div class="sub">点击「下一步」走一帧：相机沿横移轴真实走位 → 曝光采集 → 布往前送 70.63mm → 条带落到画布上</div>
+
+  <div class="ctrl">
+    <button class="p" id="next">下一步 ▶</button>
+    <button id="auto">自动播放</button>
+    <button id="reset">重置</button>
+    <button id="jump">跳到帧…</button>
+    <div class="bar"><i id="prog"></i></div>
+    <span class="cnt" id="cnt">帧 0 / 69</span>
+  </div>
+
+  <div class="grid">
+    <div>
+      <!-- X 轴俯视图 -->
+      <div class="panel">
+        <h2>① 横移轴 X —— 相机这一趟的走位 <span class="tag" id="dirTag"></span></h2>
+        <svg id="xsv" viewBox="0 0 1240 392" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <pattern id="hatch" width="7" height="7" patternTransform="rotate(45)"
+                     patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="7" stroke="#6b7789" stroke-width="2.2" opacity=".55"/>
+            </pattern>
+            <marker id="ah" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="#8b96a5"/>
+            </marker>
+            <marker id="ahc" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 z" fill="#22d3ee"/>
+            </marker>
+          </defs>
+          <g id="gx"></g>
+        </svg>
+        <div class="legend">
+          <span><i style="background:var(--cloth)"></i>布料（固定 5126–24212 px，宽 1616 mm）</span>
+          <span><i style="background:var(--scan)"></i>本帧采集窗口 30782 px</span>
+          <span><i style="background:var(--dark)"></i>暗区（相机走、不曝光）</span>
+          <span><i style="background:var(--cam)"></i>相机</span>
+        </div>
+        <div class="note">
+          <b>⚠️ 34237.9 不是右折返点。</b>反扫是相机从<b>最右端</b>往左走，起点必是它到达的最右位置。
+          帧29 的 MSP = <b>34320.49</b>，所以折返点 ≥ 34320.49；34237.9 比它小 82.2 px，
+          只能是「掉头后往左走 82.2 px 才开曝光」的触发点。
+          <span class="dim">（33 帧都在 34238 只是因为稳态每趟都一样，2 帧顶头帧才暴露真折返点。）</span>
+          <br>
+          <b>常规帧暗区恒为 630.5 px</b>（行程 31412.5 − 采集 30782），前后分配每档不同：
+          正扫「0 + 630.5」，常规反扫「前 82.2 + 后 548.3」。
+          顶头帧（0、28）例外：从回零点 0 起步，比左折返多走 2907.6 px，暗区变成 3538.1。
+        </div>
+      </div>
+
+      <!-- 帧内取窗 -->
+      <div class="panel" style="margin-top:12px">
+        <h2>② 帧内取窗 —— 2238 行里只留中间 834 行</h2>
+        <svg id="freshSvg" viewBox="0 0 1240 120" preserveAspectRatio="xMidYMid meet">
+          <g id="gf"></g>
+        </svg>
+      </div>
+    </div>
+
+    <div>
+      <!-- 数据 -->
+      <div class="panel">
+        <h2>本帧数据 <span class="tag" id="cls"></span></h2>
+        <div class="grp"><div class="t">编码器 / 方向</div><table id="tb1"></table></div>
+        <div class="grp"><div class="t">横移轴 · 走位</div><table id="tb2"></table></div>
+        <div class="grp"><div class="t">对齐计算（MSP 在此被消掉）</div><table id="tb3"></table></div>
+        <div class="grp"><div class="t">走纸轴 Y</div><table id="tb4"></table></div>
+      </div>
+
+      <div class="panel" style="margin-top:12px">
+        <h2>全部 70 帧 <span class="tag">点击跳转</span></h2>
+        <div class="frlist" id="frlist"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 画布 -->
+  <div class="panel" style="margin-top:14px">
+    <h2>③ 输出画布 —— 70 条带叠成 4.94 m <span class="tag" id="cvinfo"></span></h2>
+    <div id="canvasWrap"><canvas id="cv"></canvas></div>
+    <div class="note">
+      画布宽 21259 px = 1800 mm，布落在第 <b>1560 ~ 20640 列</b>（算法目标值）。
+      每帧只贡献 <b>834 px = 70.63 mm</b>，70 帧 → 58380 px ≈ 4.94 m。
+    </div>
+  </div>
+</div>
+
+<script>
+const FR = [{"i": 0, "msp": 0.0, "enc": 0.0, "fw": true, "step": 834.15, "encS": 706245.0}, {"i": 1, "msp": 34320.033, "enc": 29057639.2, "fw": false, "step": 1668.31, "encS": 1412507.0}, {"i": 2, "msp": 2907.578, "enc": 2461750.0, "fw": true, "step": 2501.99, "encS": 2118354.9}, {"i": 3, "msp": 34237.878, "enc": 28988081.1, "fw": false, "step": 3336.16, "encS": 2824617.0}, {"i": 4, "msp": 2907.519, "enc": 2461700.0, "fw": true, "step": 4170.33, "encS": 3530878.9}, {"i": 5, "msp": 34238.431, "enc": 28988549.8, "fw": false, "step": 5003.99, "encS": 4236711.1}, {"i": 6, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 5838.15, "encS": 4942973.0}, {"i": 7, "msp": 34238.137, "enc": 28988300.8, "fw": false, "step": 6672.32, "encS": 5649235.2}, {"i": 8, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 7506.0, "encS": 6355083.0}, {"i": 9, "msp": 34238.385, "enc": 28988510.7, "fw": false, "step": 8340.15, "encS": 7061328.1}, {"i": 10, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 9174.31, "encS": 7767589.7}, {"i": 11, "msp": 34238.137, "enc": 28988300.8, "fw": false, "step": 10007.98, "encS": 8473422.2}, {"i": 12, "msp": 2907.731, "enc": 2461880.0, "fw": true, "step": 10842.14, "encS": 9179683.8}, {"i": 13, "msp": 34238.137, "enc": 28988300.8, "fw": false, "step": 11676.31, "encS": 9885944.8}, {"i": 14, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 12509.97, "encS": 10591777.3}, {"i": 15, "msp": 34238.137, "enc": 28988300.8, "fw": false, "step": 13344.14, "encS": 11298039.6}, {"i": 16, "msp": 2907.731, "enc": 2461880.0, "fw": true, "step": 14178.3, "encS": 12004300.5}, {"i": 17, "msp": 34238.149, "enc": 28988310.5, "fw": false, "step": 15011.96, "encS": 12710131.8}, {"i": 18, "msp": 2907.471, "enc": 2461660.0, "fw": true, "step": 15846.13, "encS": 13416394.0}, {"i": 19, "msp": 34238.111, "enc": 28988278.8, "fw": false, "step": 16680.3, "encS": 14122656.2}, {"i": 20, "msp": 2907.743, "enc": 2461890.0, "fw": true, "step": 17513.95, "encS": 14828487.5}, {"i": 21, "msp": 34238.126, "enc": 28988291.0, "fw": false, "step": 18348.12, "encS": 15534749.8}, {"i": 22, "msp": 2907.507, "enc": 2461690.1, "fw": true, "step": 19182.29, "encS": 16241012.0}, {"i": 23, "msp": 34238.126, "enc": 28988291.0, "fw": false, "step": 20015.95, "encS": 16946843.3}, {"i": 24, "msp": 2907.731, "enc": 2461880.0, "fw": true, "step": 20850.12, "encS": 17653105.5}, {"i": 25, "msp": 34238.137, "enc": 28988300.8, "fw": false, "step": 21684.28, "encS": 18359366.5}, {"i": 26, "msp": 2907.471, "enc": 2461660.0, "fw": true, "step": 22517.96, "encS": 19065214.8}, {"i": 27, "msp": 34238.088, "enc": 28988259.3, "fw": false, "step": 23352.13, "encS": 19771477.1}, {"i": 28, "msp": 0.0, "enc": 0.0, "fw": true, "step": 24186.3, "encS": 20477739.3}, {"i": 29, "msp": 34320.494, "enc": 29058029.8, "fw": false, "step": 25019.96, "encS": 21183571.8}, {"i": 30, "msp": 2907.459, "enc": 2461649.9, "fw": true, "step": 25854.1, "encS": 21889816.9}, {"i": 31, "msp": 34237.829, "enc": 28988039.6, "fw": false, "step": 26688.27, "encS": 22596079.1}, {"i": 32, "msp": 2907.294, "enc": 2461510.0, "fw": true, "step": 27521.95, "encS": 23301926.3}, {"i": 33, "msp": 34238.362, "enc": 28988491.2, "fw": false, "step": 28356.12, "encS": 24008188.5}, {"i": 34, "msp": 2907.507, "enc": 2461690.1, "fw": true, "step": 29190.28, "encS": 24714450.7}, {"i": 35, "msp": 34238.362, "enc": 28988491.2, "fw": false, "step": 30023.94, "encS": 25420280.8}, {"i": 36, "msp": 2907.483, "enc": 2461670.1, "fw": true, "step": 30858.11, "encS": 26126543.0}, {"i": 37, "msp": 34238.149, "enc": 28988310.5, "fw": false, "step": 31692.28, "encS": 26832805.2}, {"i": 38, "msp": 2907.507, "enc": 2461690.1, "fw": true, "step": 32525.95, "encS": 27538652.3}, {"i": 39, "msp": 34238.374, "enc": 28988501.0, "fw": false, "step": 33360.12, "encS": 28244914.6}, {"i": 40, "msp": 2907.483, "enc": 2461670.1, "fw": true, "step": 34194.29, "encS": 28951176.8}, {"i": 41, "msp": 34238.126, "enc": 28988291.0, "fw": false, "step": 35027.95, "encS": 29657009.3}, {"i": 42, "msp": 2907.483, "enc": 2461670.1, "fw": true, "step": 35862.12, "encS": 30363271.5}, {"i": 43, "msp": 34238.374, "enc": 28988501.0, "fw": false, "step": 36696.29, "encS": 31069533.7}, {"i": 44, "msp": 2907.507, "enc": 2461690.1, "fw": true, "step": 37529.94, "encS": 31775363.8}, {"i": 45, "msp": 34238.137, "enc": 28988300.8, "fw": false, "step": 38364.11, "encS": 32481626.0}, {"i": 46, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 39198.28, "encS": 33187888.2}, {"i": 47, "msp": 34238.385, "enc": 28988510.7, "fw": false, "step": 40031.96, "encS": 33893735.4}, {"i": 48, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 40866.12, "encS": 34599997.6}, {"i": 49, "msp": 34238.111, "enc": 28988278.8, "fw": false, "step": 41700.29, "encS": 35306259.8}, {"i": 50, "msp": 2907.755, "enc": 2461900.0, "fw": true, "step": 42533.95, "encS": 36012089.8}, {"i": 51, "msp": 34238.385, "enc": 28988510.7, "fw": false, "step": 43368.12, "encS": 36718352.1}, {"i": 52, "msp": 2907.519, "enc": 2461700.0, "fw": true, "step": 44202.28, "encS": 37424614.3}, {"i": 53, "msp": 34238.348, "enc": 28988479.0, "fw": false, "step": 45035.96, "encS": 38130463.9}, {"i": 54, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 45870.13, "encS": 38836726.1}, {"i": 55, "msp": 34238.385, "enc": 28988510.7, "fw": false, "step": 46704.3, "encS": 39542985.8}, {"i": 56, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 47537.96, "encS": 40248818.4}, {"i": 57, "msp": 34238.348, "enc": 28988479.0, "fw": false, "step": 48372.1, "encS": 40955063.5}, {"i": 58, "msp": 2907.731, "enc": 2461880.0, "fw": true, "step": 49206.27, "encS": 41661328.1}, {"i": 59, "msp": 34238.137, "enc": 28988300.8, "fw": false, "step": 50039.95, "encS": 42367172.9}, {"i": 60, "msp": 2907.495, "enc": 2461680.0, "fw": true, "step": 50874.12, "encS": 43073437.5}, {"i": 61, "msp": 34238.111, "enc": 28988278.8, "fw": false, "step": 51708.28, "encS": 43779697.3}, {"i": 62, "msp": 2907.507, "enc": 2461690.1, "fw": true, "step": 52541.95, "encS": 44485532.2}, {"i": 63, "msp": 34238.149, "enc": 28988310.5, "fw": false, "step": 53376.11, "encS": 45191792.0}, {"i": 64, "msp": 2907.483, "enc": 2461670.1, "fw": true, "step": 54210.28, "encS": 45898051.8}, {"i": 65, "msp": 34238.348, "enc": 28988479.0, "fw": false, "step": 55043.96, "encS": 46603901.4}, {"i": 66, "msp": 2907.483, "enc": 2461670.1, "fw": true, "step": 55878.12, "encS": 47310161.1}, {"i": 67, "msp": 34238.397, "enc": 28988520.5, "fw": false, "step": 56712.29, "encS": 48016425.8}, {"i": 68, "msp": 2907.483, "enc": 2461670.1, "fw": true, "step": 57545.95, "encS": 48722255.9}, {"i": 69, "msp": 34238.362, "enc": 28988491.2, "fw": false, "step": 58380.12, "encS": 49428520.5}];
+const K=846.667, W=30782, BF=2461790/K, BR=29057700/K;
+const XINV=629, CL=5126, CR=24212;            // 布在机器 A 坐标
+const CW=21259, CLOTH_C0=1560, CLOTH_C1=20640; // 画布
+const FRESH=834, OVER=904, TAIL=500, H=2238;
+const PAD=60, SVGW=1240, AMAX=34800;
+const sx = p => PAD + p*(SVGW-2*PAD)/AMAX;
+
+let cur=-1, playing=false, anim=null;
+
+/* ---------- X 轴视图 ---------- */
+function drawX(f, prog){
+  // prog: {phase, t, camPos, exposed:[a,b]}
+  const g=document.getElementById('gx');
+  const yR=44, yC=70, yS=132, yM=214;
+  let s='';
+  // 刻度
+  s+=`<line x1="${PAD}" y1="${yR}" x2="${SVGW-PAD}" y2="${yR}" stroke="#2a3140"/>`;
+  for(let p=0;p<=34000;p+=4000){
+    s+=`<line x1="${sx(p)}" y1="${yR-6}" x2="${sx(p)}" y2="${yR}" stroke="#3f4a5e"/>`;
+    s+=`<text x="${sx(p)}" y="${yR-11}" fill="#8b96a5" font-size="10" text-anchor="middle">${p}</text>`;
+  }
+  s+=`<text x="${PAD}" y="${yR-24}" fill="#8b96a5" font-size="10.5">编码器绝对位置 A (输出 px)  →</text>`;
+  // 折返点
+  [[BF,'左折返',2907.6],[BR,'右折返',34320.1]].forEach(([p,lb])=>{
+    s+=`<line x1="${sx(p)}" y1="${yR-4}" x2="${sx(p)}" y2="${yM+34}" stroke="#fbbf24"
+         stroke-width="1.2" stroke-dasharray="4 4" opacity=".65"/>`;
+    s+=`<text x="${sx(p)}" y="${yM+48}" fill="#fbbf24" font-size="10" text-anchor="middle">${lb} ${p.toFixed(1)}</text>`;
+  });
+  // 回零点
+  s+=`<line x1="${sx(0)}" y1="${yR-4}" x2="${sx(0)}" y2="${yM+34}" stroke="#6b7789"
+       stroke-width="1" stroke-dasharray="2 5" opacity=".6"/>`;
+  s+=`<text x="${sx(0)}" y="${yM+48}" fill="#6b7789" font-size="10" text-anchor="middle">回零 0</text>`;
+
+  /* ---- 局部放大：右端 82.2 px，说明「反扫触发点 ≠ 右折返点」 ---- */
+  const zy=336, ZA=34180, ZB=34390;
+  const zx=p=>PAD+(p-ZA)*(SVGW-2*PAD)/(ZB-ZA);
+  const TRIG=34237.9;
+  s+=`<line x1="${PAD}" y1="${zy-40}" x2="${SVGW-PAD}" y2="${zy-40}" stroke="#2a3140" stroke-dasharray="3 3"/>`;
+  s+=`<text x="${PAD}" y="${zy-48}" fill="#8b96a5" font-size="10.5">
+       🔍 右端局部放大（34180~34390 px）— 常规反扫触发点 ≠ 右折返点</text>`;
+  s+=`<line x1="${PAD}" y1="${zy}" x2="${SVGW-PAD}" y2="${zy}" stroke="#3f4a5e"/>`;
+  // 82.2 px 滞后段
+  s+=`<rect x="${zx(TRIG)}" y="${zy-11}" width="${zx(BR)-zx(TRIG)}" height="22"
+       fill="rgba(244,114,182,.22)" stroke="#f472b6" stroke-width="1"/>`;
+  [[TRIG,'#f472b6','反扫触发点 34237.9','（33 帧常规反扫都在这）'],
+   [BR,  '#fbbf24','右折返 34320.1','（仅帧1、29 顶头反扫在这）']].forEach(([p,c,t1,t2])=>{
+    s+=`<line x1="${zx(p)}" y1="${zy-16}" x2="${zx(p)}" y2="${zy+16}" stroke="${c}" stroke-width="1.6"/>`;
+    s+=`<text x="${zx(p)}" y="${zy+31}" fill="${c}" font-size="10.5" font-weight="600"
+         text-anchor="middle">${t1}</text>`;
+    s+=`<text x="${zx(p)}" y="${zy+45}" fill="#8b96a5" font-size="9.5" text-anchor="middle">${t2}</text>`;
+  });
+  // 双向箭头
+  s+=`<line x1="${zx(TRIG)}" y1="${zy-24}" x2="${zx(BR)}" y2="${zy-24}"
+       stroke="#f472b6" stroke-width="1" marker-end="url(#ah)"/>`;
+  s+=`<line x1="${zx(BR)}" y1="${zy-24}" x2="${zx(TRIG)}" y2="${zy-24}"
+       stroke="#f472b6" stroke-width="1" marker-end="url(#ah)"/>`;
+  s+=`<text x="${(zx(TRIG)+zx(BR))/2}" y="${zy-30}" fill="#f472b6" font-size="10"
+       text-anchor="middle">82.2 px 滞后：掉头后往左走这么远才开曝光（不成像）</text>`;
+  s+=`<text x="${SVGW-PAD}" y="${zy+45}" fill="#6b7789" font-size="9.5" text-anchor="end">
+       判据：反扫起点必是相机到达的最右端 → 折返点 ≥ max(MSP)=34320.49，故 34238 不可能是折返点</text>`;
+  // 布料
+  const cw=sx(CR)-sx(CL);
+  s+=`<rect x="${sx(CL)}" y="${yC}" width="${cw}" height="34" fill="#c9a227" opacity=".85" rx="3"/>`;
+  s+=`<rect x="${sx(CL)}" y="${yC}" width="${cw}" height="34" fill="url(#hatch)" opacity=".25"/>`;
+  s+=`<text x="${(sx(CL)+sx(CR))/2}" y="${yC+22}" fill="#1a1408" font-size="12"
+       font-weight="700" text-anchor="middle">布 料 （固定不动）1616 mm</text>`;
+  s+=`<text x="${sx(CL)}" y="${yC-6}" fill="#c9a227" font-size="10" text-anchor="middle">${CL}</text>`;
+  s+=`<text x="${sx(CR)}" y="${yC-6}" fill="#c9a227" font-size="10" text-anchor="middle">${CR}</text>`;
+
+  if(!f) { g.innerHTML=s; return; }
+  const {msp, fw}=f;
+  const a = fw ? msp : msp-W, b = fw ? msp+W : msp;         // 采集区间 [a,b]
+  const rvA = fw ? BF : BR,   rvB = fw ? BR : BF;           // 起点折返 / 终点(对面)折返
+  const endScan = fw ? b : a;                               // 扫描结束点
+  const pre = fw ? msp-rvA : rvA-msp;                       // 前段：折返点 → MSP
+  const post= fw ? rvB-endScan : endScan-rvB;               // 后段：扫完 → 对面折返点
+
+  // 暗区
+  const dk=(x1,x2,lb)=>{
+    if(Math.abs(x2-x1)<0.5) return '';
+    const X=Math.min(x1,x2), Wd=Math.abs(x2-x1);
+    let t=`<rect x="${sx(X)}" y="${yS}" width="${sx(X+Wd)-sx(X)}" height="30"
+            fill="url(#hatch)" opacity=".5" stroke="#6b7789" stroke-dasharray="3 3"/>`;
+    if(lb) t+=`<text x="${sx(X+Wd/2)}" y="${yS+20}" fill="#aab4c2" font-size="10"
+                text-anchor="middle">${lb}</text>`;
+    return t;
+  };
+  s+=dk(Math.min(msp,rvA),Math.max(msp,rvA), pre>1?`前段 ${pre.toFixed(1)}`:'');
+  s+=dk(Math.min(endScan,rvB),Math.max(endScan,rvB), post>1?`后段 ${post.toFixed(1)}`:'');
+
+  // 采集窗口（完整轮廓）
+  s+=`<rect x="${sx(a)}" y="${yS}" width="${sx(b)-sx(a)}" height="30"
+       fill="none" stroke="#22d3ee" stroke-width="1.2" opacity=".55"/>`;
+  // 已曝光部分
+  if(prog && prog.exp){
+    const [ea,eb]=prog.exp;
+    s+=`<rect x="${sx(ea)}" y="${yS}" width="${sx(eb)-sx(ea)}" height="30"
+         fill="rgba(34,211,238,.20)" />`;
+    s+=`<text x="${(sx(ea)+sx(eb))/2}" y="${yS+20}" fill="#22d3ee" font-size="10.5"
+         text-anchor="middle">已曝光 ${Math.abs(eb-ea).toFixed(0)} px</text>`;
+  }
+  s+=`<text x="${sx(a)}" y="${yS-7}" fill="#22d3ee" font-size="10" text-anchor="middle">${a.toFixed(1)}</text>`;
+  s+=`<text x="${sx(b)}" y="${yS-7}" fill="#22d3ee" font-size="10" text-anchor="middle">${b.toFixed(1)}</text>`;
+
+  // 扫描方向箭头：正扫 MSP→右，反扫 MSP→左
+  const sFrom=msp, sTo=fw?msp+W:msp-W, dirn=fw?1:-1;
+  s+=`<line x1="${sx(sFrom)+dirn*10}" y1="${yS+15}" x2="${sx(sTo)-dirn*10}" y2="${yS+15}"
+       stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ahc)" opacity=".9"/>`;
+  s+=`<text x="${sx(sFrom)+dirn*46}" y="${yS+13}" fill="#22d3ee" font-size="10"
+       text-anchor="middle">${fw?'扫描 ▶▶':'◀◀ 扫描'}</text>`;
+
+  // 相机
+  const cp = prog? prog.cam : msp;
+  s+=`<g transform="translate(${sx(cp)},${yM})">
+        <path d="M-11,-13 L11,-13 L0,7 z" fill="${fw?'#60a5fa':'#f472b6'}" stroke="#fff" stroke-width="1"/>
+        <rect x="-14" y="-24" width="28" height="11" rx="2" fill="${fw?'#60a5fa':'#f472b6'}" opacity=".55"/>
+      </g>`;
+  s+=`<text x="${sx(cp)}" y="${yM+18}" fill="#fff" font-size="10.5" font-weight="700"
+       text-anchor="middle">相机 ${cp.toFixed(1)}</text>`;
+  // MSP 标记
+  s+=`<line x1="${sx(msp)}" y1="${yC+34}" x2="${sx(msp)}" y2="${yS}" stroke="#4ade80" stroke-width="1.4"/>`;
+  s+=`<text x="${sx(msp)}" y="${yC+48}" fill="#4ade80" font-size="10" text-anchor="middle">
+       MSP ${msp.toFixed(1)}</text>`;
+  g.innerHTML=s;
+}
+
+/* ---------- 帧内取窗 ---------- */
+function drawFresh(f){
+  const g=document.getElementById('gf');
+  const y=34, h=44;
+  const X=p=>PAD+p*(SVGW-2*PAD)/H;
+  let s=`<text x="${PAD}" y="18" fill="#8b96a5" font-size="10.5">单帧原始 2238 行（走纸方向）→ 输出前处理</text>`;
+  const seg=(a,b,fill,stroke,lb,col)=>{
+    s+=`<rect x="${X(a)}" y="${y}" width="${X(b)-X(a)}" height="${h}" fill="${fill}"
+         stroke="${stroke}" stroke-width="1"/>`;
+    s+=`<text x="${(X(a)+X(b))/2}" y="${y+27}" fill="${col}" font-size="11" font-weight="600"
+         text-anchor="middle">${lb}</text>`;
+    s+=`<text x="${X(a)}" y="${y+h+15}" fill="#8b96a5" font-size="9.5" text-anchor="middle">${a}</text>`;
+  };
+  seg(0,904,'rgba(120,132,152,.22)','#6b7789',`与前一带重叠 904 行`,'#aab4c2');
+  seg(904,1738,'rgba(74,222,128,.22)','#4ade80',`★ fresh 新内容 834 行 = 70.63mm`,'#4ade80');
+  seg(1738,2238,'url(#hatch)','#6b7789',`光衰区 500 行 丢弃`,'#8b96a5');
+  s+=`<text x="${X(2238)}" y="${y+h+15}" fill="#8b96a5" font-size="9.5" text-anchor="middle">2238</text>`;
+  // 下一帧窗口位置
+  s+=`<rect x="${X(904-834.17)}" y="${y-16}" width="${X(1738-834.17)-X(904-834.17)}" height="11"
+       fill="rgba(96,165,250,.3)" stroke="#60a5fa" stroke-dasharray="3 2"/>`;
+  s+=`<text x="${X((904-834.17+1738-834.17)/2)}" y="${y-19}" fill="#60a5fa" font-size="9.5"
+       text-anchor="middle">下一帧 fresh（与上一带 834 行重叠）</text>`;
+  s+=`<text x="${PAD}" y="${y+h+34}" fill="#8b96a5" font-size="10.5">
+       恒等式：904 + 834.17 = 1738.17 ≈ 1738 　→　相邻两带首尾相接，834 行重叠供 seam_refine 纠偏</text>`;
+  g.innerHTML=s;
+}
+
+/* ---------- 数据面板 ---------- */
+function rows(el,arr){el.innerHTML=arr.map(([k,v,c])=>
+  `<tr><td>${k}</td><td class="${c||''} mono">${v}</td></tr>`).join('');}
+
+function drawData(f){
+  const {i,msp,fw,step,enc}=f;
+  const cls = fw ? (msp<1?'正-顶头':'正-常规') : (msp>34300?'反-顶头':'反-常规');
+  document.getElementById('cls').textContent=cls;
+  document.getElementById('dirTag').innerHTML =
+    `<span class="${fw?'fwd':'rev'}">${fw?'正扫 True（左→右）':'反扫 False（右→左）'}</span>`;
+
+  rows(document.getElementById('tb1'),[
+    ['帧号', i],
+    ['方向', fw?'正扫':'反扫', fw?'fwd':'rev'],
+    ['MSP 编码器', enc.toLocaleString()],
+    ['MSP ÷ 846.667', msp.toFixed(3)+' px'],
+  ]);
+
+  const a=fw?msp:msp-W, b=fw?msp+W:msp;
+  const rvA=fw?BF:BR, rvB=fw?BR:BF;
+  const endScan=fw?b:a;
+  const pre=fw?msp-rvA:rvA-msp, post=fw?rvB-endScan:endScan-rvB;
+  const tot=Math.max(0,pre)+post;
+  rows(document.getElementById('tb2'),[
+    ['起点折返点', rvA.toFixed(1)+' px'],
+    ['前段暗区', (pre<0?'超程 ':'')+pre.toFixed(1)+' px', Math.abs(pre)<2?'ok':'warn'],
+    ['采集窗口', `[${a.toFixed(1)} , ${b.toFixed(1)}]`],
+    ['窗口宽', W+' px'],
+    ['后段暗区', post.toFixed(1)+' px', 'warn'],
+    ['暗区合计', tot.toFixed(1)+' px', 'ok'],
+  ]);
+
+  const base=fw?BF:BR;
+  const align=msp-base, xin=fw?0:XINV, shiftTot=align+xin;
+  const p = fw ? (CL-BF) : (CL+(W-1)+XINV-BR);
+  rows(document.getElementById('tb3'),[
+    ['BASE', base.toFixed(3)+' px'],
+    ['alignment', (align>=0?'+':'')+align.toFixed(3)+' px'],
+    ['x_invert', fw?'0（正扫不补）':'+'+XINV+' px', fw?'dim':''],
+    ['总平移', (shiftTot>=0?'+':'')+shiftTot.toFixed(3)+' px'],
+    ['布左缘落位 p', p.toFixed(1)+' px', 'ok'],
+    ['MSP 是否残留', '已消掉 → 0', 'ok'],
+  ]);
+
+  const row=(step-FR[0].step);
+  rows(document.getElementById('tb4'),[
+    ['Step 编码器', f.encS? f.encS.toLocaleString():'—'],
+    ['Step ÷ 846.667', step.toFixed(2)+' px'],
+    ['画布行起点', Math.round(row)+' 行'],
+    ['本带高', FRESH+' px'],
+    ['画布累计高', (Math.round(row)+FRESH)+' px'],
+  ]);
+}
+
+/* ---------- 画布 ---------- */
+const cv=document.getElementById('cv'), cx=cv.getContext('2d');
+const BANDH=7, CVW=760;
+function initCanvas(){
+  cv.width=CVW; cv.height=70*BANDH; cx.fillStyle='#0a0d13'; cx.fillRect(0,0,cv.width,cv.height);
+  const s=CVW/CW;
+  cx.fillStyle='rgba(120,132,152,.10)'; cx.fillRect(0,0,CLOTH_C0*s,cv.height);
+  cx.fillRect(CLOTH_C1*s,0,CVW-CLOTH_C1*s,cv.height);
+}
+function drawBand(n){
+  const s=CVW/CW, y=n*BANDH;
+  cx.fillStyle='#12161d'; cx.fillRect(0,y,CLOTH_C0*s,BANDH);
+  cx.fillRect(CLOTH_C1*s,y,CVW-CLOTH_C1*s,BANDH);
+  const f=FR[n];
+  cx.fillStyle=f.fw?'#a9772e':'#b07f36';
+  cx.fillRect(CLOTH_C0*s,y,(CLOTH_C1-CLOTH_C0)*s,BANDH-1);
+  if(n>0){ cx.fillStyle='rgba(0,0,0,.45)'; cx.fillRect(0,y,CVW,1); }
+}
+function drawCursor(n){
+  const s=CVW/CW;
+  cx.strokeStyle='#22d3ee'; cx.lineWidth=1;
+  cx.strokeRect(.5, n*BANDH+.5, CVW-1, BANDH-1);
+}
+
+/* ---------- 帧列表 ---------- */
+function buildList(){
+  const el=document.getElementById('frlist');
+  el.innerHTML=FR.map(f=>{
+    const c=f.fw?(f.msp<1?'顶头':'常规'):(f.msp>34300?'顶头':'常规');
+    const bg=f.msp<1||f.msp>34300?' style="color:#fbbf24"':'';
+    return `<div data-i="${f.i}" id="fl${f.i}"${bg}>
+      <span class="${f.fw?'fwd':'rev'}">${String(f.i).padStart(2)}</span>
+      ${f.fw?'正':'反'} ${String(f.msp.toFixed(1)).padStart(9)} ${c}</div>`;
+  }).join('');
+  el.querySelectorAll('div').forEach(d=>d.onclick=()=>jump(+d.dataset.i));
+}
+function markList(){
+  FR.forEach(f=>{
+    const e=document.getElementById('fl'+f.i);
+    e.className = f.i===cur?'cur':(f.i<cur?'done':'');
+  });
+  if(cur>=0) document.getElementById('fl'+cur).scrollIntoView({block:'nearest'});
+}
+
+/* ---------- 动画 ---------- */
+function runFrame(n, instant){
+  if(n>=FR.length) return;
+  const f=FR[n];
+  const a=f.fw?f.msp:f.msp-W, b=f.fw?f.msp+W:f.msp;
+  const rvA=f.fw?BF:BR, rvB=f.fw?BR:BF;
+  const endScan=f.fw?b:a;
+  const pre=Math.abs(f.msp-rvA), post=Math.abs(endScan-rvB);
+
+  const stages=[];
+  if(pre>1)  stages.push({from:rvA, to:f.msp,   d:instant?0:260, kind:'pre'});
+             stages.push({from:f.msp, to:endScan,d:instant?0:900, kind:'scan'});
+  if(post>1) stages.push({from:endScan, to:rvB, d:instant?0:260, kind:'post'});
+
+  let si=0, t0=null;
+  if(anim) cancelAnimationFrame(anim);
+  function stepAnim(ts){
+    if(t0===null) t0=ts;
+    const st=stages[si];
+    const t=st.d? Math.min(1,(ts-t0)/st.d) : 1;
+    const cam=st.from+(st.to-st.from)*t;
+    let exp=null;
+    if(st.kind==='scan'){ exp = f.fw?[f.msp, cam]:[cam, f.msp]; }
+    else if(st.kind==='post'){ exp=[a,b]; }
+    drawX(f,{cam,exp});
+    document.getElementById('prog').style.width =
+      ((si + t)/stages.length*100)+'%';
+    if(t<1){ anim=requestAnimationFrame(stepAnim); }
+    else{
+      si++; t0=null;
+      if(si<stages.length) anim=requestAnimationFrame(stepAnim);
+      else commit(n);
+    }
+  }
+  if(instant){ commit(n); drawX(f,{cam:rvB,exp:[a,b]}); }
+  else anim=requestAnimationFrame(stepAnim);
+}
+
+function commit(n){
+  cur=n;
+  drawX(FR[n],{cam:FR[n].fw?BR:BF,exp:[FR[n].fw?FR[n].msp:FR[n].msp-W,FR[n].fw?FR[n].msp+W:FR[n].msp]});
+  drawFresh(FR[n]); drawData(FR[n]); markList();
+  if(n>0) drawBand(n); else drawBand(0);
+  drawCursor(n);
+  document.getElementById('cnt').textContent=`帧 ${n} / 69`;
+  const hpx=Math.round(FR[n].step-FR[0].step)+834;
+  const m=(hpx/11.811/1000).toFixed(3);
+  document.getElementById('cvinfo').textContent=
+    `已叠 ${n+1} 条带 · 画布高 ${hpx} px ≈ ${m} m`;
+  document.getElementById('prog').style.width='100%';
+  document.getElementById('next').disabled = n>=FR.length-1;
+}
+
+function jump(n){ cur=n-1; initCanvas(); for(let k=0;k<=n;k++) drawBand(k); next(true); }
+function next(instant){
+  if(cur>=FR.length-1) return;
+  runFrame(cur+1, instant);
+}
+
+document.getElementById('next').onclick=()=>next(false);
+document.getElementById('reset').onclick=()=>{
+  if(anim)cancelAnimationFrame(anim); playing=false;
+  document.getElementById('auto').textContent='自动播放';
+  cur=-1; initCanvas(); drawX(null); 
+  document.getElementById('gf').innerHTML='';
+  ['tb1','tb2','tb3','tb4'].forEach(id=>document.getElementById(id).innerHTML='');
+  document.getElementById('cls').textContent=''; document.getElementById('dirTag').textContent='';
+  document.getElementById('cnt').textContent='帧 0 / 69';
+  document.getElementById('prog').style.width='0';
+  document.getElementById('cvinfo').textContent='';
+  document.getElementById('next').disabled=false; markList();
+};
+document.getElementById('auto').onclick=function(){
+  playing=!playing; this.textContent=playing?'暂停':'自动播放';
+  if(playing){ const t=setInterval(()=>{
+      if(!playing||cur>=FR.length-1){clearInterval(t);playing=false;
+        document.getElementById('auto').textContent='自动播放';return;}
+      next(false);
+    },1600); }
+};
+document.getElementById('jump').onclick=()=>{
+  const v=prompt('跳到帧号（0-69）','0'); if(v===null)return;
+  const n=Math.max(0,Math.min(69,parseInt(v)||0));
+  if(anim)cancelAnimationFrame(anim); jump(n);
+};
+
+initCanvas(); buildList(); drawX(null);
+</script>
+</body>
+</html>

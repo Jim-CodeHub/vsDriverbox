@@ -12,8 +12,15 @@ from multiprocessing import Queue
 import queue
 import time # For simulation
 
+# Rows of stitched web the live viewer keeps. At the production canvas width
+# (21259 px) this caps the buffer at roughly 87 MB; a strip is ~834 rows, so
+# about five strips stay visible. The viewer is a monitor, not the archive -
+# the full image goes out on the data socket.
+MAX_VIEW_ROWS = 4096
+
 class ImageReceiverThread(QThread):
     image_received = pyqtSignal(np.ndarray) # Signal to send numpy array to main thread
+    shutdown_requested = pyqtSignal()       # sentinel arrived - close the window
 
     def __init__(self, image_queue: Queue):
         super().__init__()
@@ -29,13 +36,18 @@ class ImageReceiverThread(QThread):
 
             if image_data is None: # Sentinel for shutdown
                 self._running = False
+                self.shutdown_requested.emit()
                 break
 
             self.image_received.emit(image_data)
 
     def stop(self):
         self._running = False
-        self.wait() # Wait for the thread to finish execution
+        # bounded wait: the loop polls at 100 ms, so this returns promptly. Never
+        # block the GUI thread forever on a wedged queue.
+        if not self.wait(2000):
+            self.terminate()
+            self.wait(500)
 
 class ImageGraphicsView(QGraphicsView):
     def __init__(self, scene, parent=None):
@@ -99,7 +111,14 @@ class RealtimeImageViewer(QMainWindow):
         self.view.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
 
         self.image_item = None
-        self.image_list = [] # Initialize a list to store incoming images
+        # Rolling view buffer. The old code kept every strip in a list and
+        # re-ran np.vstack over the whole history on each frame: unbounded
+        # memory and O(n^2) copying, which on a long roll (17.7 MB per strip)
+        # exhausts RAM and freezes the display. Now a preallocated window is
+        # written in place, and the oldest half is dropped in one shift when it
+        # fills, so memory is capped and the per-strip copy is O(strip).
+        self._canvas = None
+        self._filled = 0
 
         self.status_label = QLabel("X: -, Y: -")
         self.statusBar().addWidget(self.status_label)
@@ -122,6 +141,8 @@ class RealtimeImageViewer(QMainWindow):
             logger.info("Create ImageReciverThread")
             self.receiver_thread = ImageReceiverThread(self.image_queue)
             self.receiver_thread.image_received.connect(self.update_image_from_numpy)
+            # sentinel from the parent process must actually leave the event loop
+            self.receiver_thread.shutdown_requested.connect(self.close)
             self.receiver_thread.start()
         else:
             self.receiver_thread = None
@@ -178,9 +199,28 @@ class RealtimeImageViewer(QMainWindow):
 
     @pyqtSlot(np.ndarray)
     def update_image_from_numpy(self, numpy_image):
-        self.image_list.append(numpy_image)
-        # Vertically stack all images in the list
-        stacked_image = np.vstack(self.image_list)
+        strip = np.ascontiguousarray(numpy_image)
+        if self._canvas is None or self._canvas.shape[1:] != strip.shape[1:] \
+                or self._canvas.dtype != strip.dtype:
+            self._canvas = np.zeros((MAX_VIEW_ROWS,) + strip.shape[1:], dtype=strip.dtype)
+            self._filled = 0
+
+        rows = strip.shape[0]
+        if rows >= MAX_VIEW_ROWS:
+            self._canvas[:] = strip[-MAX_VIEW_ROWS:]
+            self._filled = MAX_VIEW_ROWS
+        else:
+            if self._filled + rows > MAX_VIEW_ROWS:
+                # drop the oldest half in one move, so this costs O(window) once
+                # every window/2 rows instead of O(history) every strip
+                keep = max(0, MAX_VIEW_ROWS // 2 - rows)
+                if keep:
+                    self._canvas[:keep] = self._canvas[self._filled - keep:self._filled]
+                self._filled = keep
+            self._canvas[self._filled:self._filled + rows] = strip
+            self._filled += rows
+
+        stacked_image = self._canvas[:self._filled]
 
         # Convert stacked_image to QImage
         h, w = stacked_image.shape[:2]

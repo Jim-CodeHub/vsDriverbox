@@ -1,0 +1,99 @@
+StreamStitch: data=F:\otherdata\vsDriverbox-20260909\testdata\20260627\stitch true=4_final_calib.yaml false=3_final_calib.yaml
+[info] 标定自带 cross_term，在线 skew 冷启动自动归零（双计保护）: ['testdata\\20260627\\calib\\4_final_calib.yaml', 'testdata\\20260627\\calib\\3_final_calib.yaml']
+[info] data dir   F:\otherdata\vsDriverbox-20260909\testdata\20260627\stitch
+[info] info json  LocalImageInfos.json  (70 entries)
+[info] yaml       true=4_final_calib.yaml  false=3_final_calib.yaml
+[info] frames     0..69
+[info] cold start s = +0.000000e+00 (theta = +0.00000 deg), A = +0.0000 px [zeroed: calibration carries cross_term]
+[info] online fit: on   loop closure: on (weight 0.5)   paste: sub-pixel
+[info] paste model research   feedback: on   scale: fitted encoder
+[info] ACCELERATED: shm pipeline: 4 rectify procs + 8 window procs (zero-copy) + CPU warp (lookahead 10) + concurrent loop pair
+[frame   0] held: MSP~=0 and only 0 same-direction strips have arrived
+[frame   0] source=anchor  applied +0.000  refine +0.000  s 0.0000e+00 A +0.000 (prior, 0 pairs)  (held 4 frames)
+[frame   1] source=model (residual -2.575 px exceeds 2.5)  applied +0.000  refine +0.000  s 0.0000e+00 A +0.000 (prior, 0 pairs)
+[frame   2] predicted +0.000 residual +1.285 loop -1.749  applied +0.274  refine -0.274  s 0.0000e+00 A +0.000 (prior, 1 pairs)
+[frame   3] predicted +0.000 residual -1.734 loop -0.211  applied -1.226  refine +0.953  s 0.0000e+00 A +0.000 (prior, 2 pairs)
+[frame   4] predicted +0.000 residual +1.690 loop +0.480  applied +1.287  refine -0.334  s 0.0000e+00 A +0.000 (prior, 3 pairs)
+[frame   5] predicted +0.000 residual -1.784 loop -0.983  applied -1.517  refine +1.183  s 0.0000e+00 A +0.000 (fitted, 4 pairs)
+[frame   6] predicted +1.488 residual +0.266 loop -0.594  applied -0.021  refine +1.204  s -1.6288e-04 A -1.624 (fitted, 5 pairs)
+[frame   7] predicted -1.759 residual +0.016 loop +0.850  applied +0.294  refine +0.910  s -1.0962e-04 A -1.668 (fitted, 6 pairs)
+[frame   8] predicted +1.576 residual +0.102 loop -0.903  applied -0.233  refine +1.143  s -1.0634e-04 A -1.665 (fitted, 7 pairs)
+[frame   9] predicted -1.753 residual +0.150 loop +0.800  applied +0.367  refine +0.776  s -9.1084e-05 A -1.678 (fitted, 8 pairs)
+[frame  10] predicted +1.602 residual -0.312 loop -1.349  applied -0.658  refine +1.434  s -6.8557e-05 A -1.659 (fitted, 9 pairs)
+[frame  11] predicted -1.716 residual +0.418 loop +1.012  applied +0.616  refine +0.818  s -1.0605e-04 A -1.628 (fitted, 10 pairs)
+[frame  12] predicted +1.539 residual -0.368 loop -1.317  applied -0.684  refine +1.502  s -5.5818e-05 A -1.586 (fitted, 11 pairs)
+[frame  13] predicted -1.632 residual -0.257 loop +0.777  applied +0.088  refine +1.414  s -9.2648e-05 A -1.555 (fitted, 12 pairs)
+[frame  14] predicted +1.478 residual +0.005 loop -0.832  applied -0.274  refine +1.688  s -1.1839e-04 A -1.577 (fitted, 13 pairs)
+[frame  15] predicted -1.675 residual +0.290 loop +0.889  applied +0.490  refine +1.199  s -1.1799e-04 A -1.577 (fitted, 14 pairs)
+[frame  16] predicted +1.479 residual -0.393 loop -1.202  applied -0.663  refine +1.862  s -9.3101e-05 A -1.556 (fitted, 15 pairs)
+[frame  17] predicted -1.634 residual +0.396 loop +1.285  applied +0.692  refine +1.169  s -1.2262e-04 A -1.532 (fitted, 16 pairs)
+[frame  18] predicted +1.429 residual +0.140 loop -0.893  applied -0.204  refine +1.373  s -9.2881e-05 A -1.507 (fitted, 17 pairs)
+[frame  19] predicted -1.584 residual -0.483 loop +0.295  applied -0.223  refine +1.597  s -8.3513e-05 A -1.515 (fitted, 18 pairs)
+[frame  20] predicted +1.445 residual +0.641 loop -0.334  applied +0.316  refine +1.280  s -1.1573e-04 A -1.542 (fitted, 19 pairs)
+[frame  21] predicted -1.638 residual -0.400 loop +0.402  applied -0.133  refine +1.413  s -7.7238e-05 A -1.574 (fitted, 20 pairs)
+[frame  22] predicted +1.509 residual +0.341 loop -0.622  applied +0.020  refine +1.393  s -1.0126e-04 A -1.594 (fitted, 21 pairs)
+[frame  23] predicted -1.678 residual +0.271 loop +0.947  applied +0.496  refine +0.897  s -8.2624e-05 A -1.609 (fitted, 22 pairs)
+[frame  24] predicted +1.540 residual -0.142 loop -0.994  applied -0.426  refine +1.323  s -6.7863e-05 A -1.597 (fitted, 23 pairs)
+[frame  25] predicted -1.653 residual +0.049 loop +0.669  applied +0.256  refine +1.068  s -7.4986e-05 A -1.591 (fitted, 24 pairs)
+[frame  26] predicted +1.528 residual -0.138 loop -1.042  applied -0.440  refine +1.507  s -7.2543e-05 A -1.589 (fitted, 25 pairs)
+[frame  27] predicted -1.649 residual -0.079 loop +0.843  applied +0.228  refine +1.279  s -7.8920e-05 A -1.584 (fitted, 26 pairs)
+[frame  28] predicted +1.518 residual +1.021 loop +0.115  applied +0.719  refine +0.560  s -8.2582e-05 A -1.587 (fitted, 27 pairs)
+[frame  29] predicted -1.655 residual -1.012 loop -0.472  applied -0.832  refine +1.392  s -3.8768e-05 A -1.623 (fitted, 28 pairs)
+[frame  30] predicted +1.591 residual +0.209 loop -0.554  applied -0.045  refine +1.437  s -8.2158e-05 A -1.659 (fitted, 29 pairs)
+[frame  31] predicted -1.728 residual -0.230 loop +0.624  applied +0.055  refine +1.382  s -7.3781e-05 A -1.666 (fitted, 30 pairs)
+[frame  32] predicted +1.605 residual +0.088 loop -0.850  applied -0.225  refine +1.607  s -8.2974e-05 A -1.674 (fitted, 31 pairs)
+[frame  33] predicted -1.743 residual +0.267 loop +1.162  applied +0.565  refine +1.042  s -7.9675e-05 A -1.677 (fitted, 32 pairs)
+[frame  34] predicted +1.610 residual -0.037 loop -1.016  applied -0.363  refine +1.405  s -6.9664e-05 A -1.668 (fitted, 33 pairs)
+[frame  35] predicted -1.726 residual +0.325 loop +1.149  applied +0.599  refine +0.805  s -7.0963e-05 A -1.667 (fitted, 34 pairs)
+[frame  36] predicted +1.608 residual -0.325 loop -1.417  applied -0.689  refine +1.494  s -5.9493e-05 A -1.658 (fitted, 35 pairs)
+[frame  37] predicted -1.707 residual -0.199 loop +0.469  applied +0.023  refine +1.471  s -7.0331e-05 A -1.649 (fitted, 36 pairs)
+[frame  38] predicted +1.590 residual +0.298 loop -0.677  applied -0.027  refine +1.498  s -7.6983e-05 A -1.654 (fitted, 37 pairs)
+[frame  39] predicted -1.718 residual -0.176 loop +0.403  applied +0.017  refine +1.481  s -6.7568e-05 A -1.662 (fitted, 38 pairs)
+[frame  40] predicted +1.606 residual -0.153 loop -1.085  applied -0.464  refine +1.944  s -7.3137e-05 A -1.667 (fitted, 39 pairs)
+[frame  41] predicted -1.727 residual +0.060 loop +0.880  applied +0.333  refine +1.611  s -7.7721e-05 A -1.663 (fitted, 40 pairs)
+[frame  42] predicted +1.598 residual -0.113 loop -0.874  applied -0.367  refine +1.978  s -7.5928e-05 A -1.661 (fitted, 41 pairs)
+[frame  43] predicted -1.724 residual +0.210 loop +0.838  applied +0.419  refine +1.559  s -7.9164e-05 A -1.659 (fitted, 42 pairs)
+[frame  44] predicted +1.593 residual +0.004 loop -1.026  applied -0.339  refine +1.898  s -7.3163e-05 A -1.654 (fitted, 43 pairs)
+[frame  45] predicted -1.714 residual +0.412 loop +1.204  applied +0.676  refine +1.222  s -7.3052e-05 A -1.654 (fitted, 44 pairs)
+[frame  46] predicted +1.593 residual -0.245 loop -1.203  applied -0.565  refine +1.787  s -6.1799e-05 A -1.644 (fitted, 45 pairs)
+[frame  47] predicted -1.696 residual -0.067 loop +0.725  applied +0.197  refine +1.590  s -6.8208e-05 A -1.639 (fitted, 46 pairs)
+[frame  48] predicted +1.582 residual +0.185 loop -0.766  applied -0.132  refine +1.722  s -6.9946e-05 A -1.641 (fitted, 47 pairs)
+[frame  49] predicted -1.699 residual -0.044 loop +0.722  applied +0.211  refine +1.511  s -6.5317e-05 A -1.644 (fitted, 48 pairs)
+[frame  50] predicted +1.590 residual -0.220 loop -1.278  applied -0.573  refine +2.083  s -6.6419e-05 A -1.645 (fitted, 49 pairs)
+[frame  51] predicted -1.700 residual +0.417 loop +1.095  applied +0.643  refine +1.440  s -7.1701e-05 A -1.641 (fitted, 50 pairs)
+[frame  52] predicted +1.581 residual -0.275 loop -1.439  applied -0.663  refine +2.103  s -6.1678e-05 A -1.633 (fitted, 51 pairs)
+[frame  53] predicted -1.684 residual +0.081 loop +0.718  applied +0.293  refine +1.810  s -6.8029e-05 A -1.627 (fitted, 52 pairs)
+[frame  54] predicted +1.570 residual -0.105 loop -1.185  applied -0.465  refine +2.275  s -6.6170e-05 A -1.626 (fitted, 53 pairs)
+[frame  55] predicted -1.681 residual +0.251 loop +1.223  applied +0.575  refine +1.700  s -6.8500e-05 A -1.624 (fitted, 54 pairs)
+[frame  56] predicted +1.567 residual -0.047 loop -1.011  applied -0.368  refine +2.067  s -6.2917e-05 A -1.619 (fitted, 55 pairs)
+[frame  57] predicted -1.671 residual -0.264 loop +0.626  applied +0.032  refine +2.035  s -6.3916e-05 A -1.618 (fitted, 56 pairs)
+[frame  58] predicted +1.565 residual +0.236 loop -0.784  applied -0.104  refine +2.139  s -6.9587e-05 A -1.623 (fitted, 57 pairs)
+[frame  59] predicted -1.681 residual -0.244 loop +0.609  applied +0.040  refine +2.099  s -6.4695e-05 A -1.627 (fitted, 58 pairs)
+[frame  60] predicted +1.573 residual +0.232 loop -0.795  applied -0.110  refine +2.209  s -6.9753e-05 A -1.631 (fitted, 59 pairs)
+[frame  61] predicted -1.689 residual +0.175 loop +0.920  applied +0.423  refine +1.785  s -6.5106e-05 A -1.635 (fitted, 60 pairs)
+[frame  62] predicted +1.581 residual -0.099 loop -0.983  applied -0.394  refine +2.179  s -6.1595e-05 A -1.632 (fitted, 61 pairs)
+[frame  63] predicted -1.683 residual -0.019 loop +0.831  applied +0.264  refine +1.915  s -6.3517e-05 A -1.631 (fitted, 62 pairs)
+[frame  64] predicted +1.578 residual +0.028 loop -1.016  applied -0.320  refine +2.235  s -6.3893e-05 A -1.631 (fitted, 63 pairs)
+[frame  65] predicted -1.684 residual +0.006 loop +0.577  applied +0.196  refine +2.039  s -6.3368e-05 A -1.631 (fitted, 64 pairs)
+[frame  66] predicted +1.578 residual -0.034 loop -1.070  applied -0.379  refine +2.419  s -6.3264e-05 A -1.631 (fitted, 65 pairs)
+[frame  67] predicted -1.684 residual -0.199 loop +0.491  applied +0.031  refine +2.388  s -6.3884e-05 A -1.631 (fitted, 66 pairs)
+[frame  68] predicted +1.577 residual -0.085 loop -1.106  applied -0.425  refine +2.813  s -6.7497e-05 A -1.634 (fitted, 67 pairs)
+[frame  69] predicted -1.690 residual +0.117 loop +0.960  applied +0.398  refine +2.415  s -6.8989e-05 A -1.633 (fitted, 68 pairs)
+=== done ===
+  learnt model         s = -6.692726e-05 (theta = -0.00383 deg), A = -1.6309 px  [fitted, 68 pairs]
+  skew model last      +4.1902 px
+  residual chain last  +2.4147 px, max |chain| 2.8125 px
+  |applied| rms        0.4885 px   first third 0.6182 -> last third 0.3674
+  loop pairs used      68 / 68
+  links carried by model [1]
+  tif    F:\otherdata\vsDriverbox-20260909\testdata\out\20260627_stream\_base_stitch\stitched_0_69_stream.tif
+  verify {'path': 'F:\\otherdata\\vsDriverbox-20260909\\testdata\\out\\20260627_stream\\_base_stitch\\stitched_0_69_stream.tif', 'size': [34322, 59710]}
+  wall   154.6 s  (2.21 s/frame, workers=8)
+[2/2] 边缘视差补偿
+  输入 F:\otherdata\vsDriverbox-20260909\testdata\out\20260627_stream\_base_stitch\stitched_0_69_stream.tif
+  成图 59710 x 34322
+  69 条缝: 68_69@1087  67_68@1921  66_67@2753  65_66@3588  64_65@4419  63_64@5253  62_63@6086  61_62@6920  60_61@7752  59_60@8587  58_59@9418  57_58@10252  56_57@11084  55_56@11918  54_55@12749  53_54@13584  52_53@14415  51_52@15250  50_51@16082  49_50@16916  48_49@17748  47_48@18582  46_47@19414  45_46@20248  44_45@21059  43_44@21915  42_43@22746  41_42@23580  40_41@24411  39_40@25245  38_39@26076  37_38@26910  36_37@27742  35_36@28576  34_35@29387  33_34@30244  32_33@31076  31_32@31911  30_31@32742  29_30@33577  28_29@34408  27_28@35241  26_27@36074  25_26@36908  24_25@37740  23_24@38575  22_23@39406  21_22@40240  20_21@41072  19_20@41884  18_19@42738  17_18@43573  16_17@44404  15_16@45238  14_15@46069  13_14@46904  12_13@47735  11_12@48569  10_11@49400  9_10@50233  8_9@51065  7_8@51899  6_7@52731  5_6@53566  4_5@54396  3_4@55230  2_3@56062  1_2@56861  0_1@57727
+  贯穿卷长的强边 2 条（140 次命中，>= 3 次）: 10100  29180
+  有效量测 0 / 138
+StreamStitch: parallax compensation unavailable (没有任何有效量测，放弃（不要拿噪声去修图）); keeping the base stitch
+StreamStitch: done F:\otherdata\vsDriverbox-20260909\testdata\out\20260627_stream\_base_stitch\stitched_0_69_stream.tif, canvas (59710, 34322), compensated=False

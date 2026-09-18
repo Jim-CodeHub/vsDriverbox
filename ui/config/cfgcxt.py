@@ -41,7 +41,14 @@ class ConfigContext(object):
             "data_recv_port": "9120",
             "capture_img_len": "100",
             "capture_img_height": "2048",
-            "calib_file": r"D:\vsDriverbox\calib.yaml",
+            # 2026-09-12 起改用 20260903 那对（target_grid_shape = 30785 x 2240，
+            # 现场机器实际使用的标定；旧的那对 4_registered/3_hflip_registered 是
+            # 30781 x 2238，与现场报错里的 h=30785 对不上）。
+            # 两份 yaml 已拷进 calib\，会被 vsDriverBox.spec 的 ('calib/*.yaml','calib') 打包。
+            "calib_file": r"calib\4_final_calib.yaml",
+            # Reverse-pass calibration. Empty = keep the legacy behaviour of
+            # faking the reverse pass by flipping the raw scan axis.
+            "calib_file_false": r"calib\5_final_calib.yaml",
             "capture_save_dir": r"D:\vsDriverbox\cap",
             "rip_send_dir": r"D:\vsDriverbox\rip",
             "cap_line_timeout": "5000",
@@ -56,7 +63,7 @@ class ConfigContext(object):
             "light_brightness": "100",
             "light_use_enabled": True,
             "dpi": "300",
-            "cal_sel": "旧版",
+            "cal_sel": "new",
             "stitch_left_ref": "2461790",
             "stitch_right_ref": "29057700",
             "img_stitch_offset": "629",
@@ -65,7 +72,31 @@ class ConfigContext(object):
             "overlap_offset_pix": "500",
             "stitch_timeout": "60",
             "language": "zh_CN",
-            "export_calib_img": False
+            "export_calib_img": False,
+            # Close the loop on the seam: measure every strip against the
+            # previous one and correct the paste instead of trusting the
+            # encoder alone. Off = legacy open-loop paste.
+            "seam_refine": True,
+            # ---- 流式拼接器（离线拼接用，见 drivers/camera/StreamStitch.py）----
+            # 逐机常数：Step 编码器尺度 / 反向帧 x 原点偏移 / 缝内缩(px)。
+            # 缺省值 = 2026-09-10 新机器 8 帧数据上验证过的那组；
+            # 旧机器（20260627 批）用 847.965622809793 / 2.908141050525 / 256。
+            "stream_d_step_x": "846.0527400801201",
+            "stream_x_offset_false": "5.2406",
+            "stream_seam_inset": "384",
+            "stream_workers": "8",
+            # 成图后做边缘视差补偿（stitch_stream_finalv2）；无强边时自动退回未补偿图
+            "stream_parallax": True,
+            # fastcore 加速内核（可分离建图，数值等价）+ 砍纯诊断 FFT；缺省开
+            "stream_fast": True,
+            "stream_no_diag": True,
+            # 最终 warp 走 GPU（需现场装 torch+CUDA；像素与 CPU 可差 <=3/255，
+            # 交付验证参考图是 CPU 产物，故缺省关）
+            "stream_gpu_warp": False,
+            # 实时打印转发路径也走流式拼接引擎（StreamRealtime）；
+            # 带口径（宽度/相位/y_step）与旧路径一致，缝质量 C 级。
+            # False = 回退旧引擎（SeamRefine 闭环）
+            "stream_realtime": True
         }
         # Define synchronization events for business threads
         self.events = {

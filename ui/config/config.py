@@ -19,7 +19,7 @@ from .cfgcxt import config_context
 
 # 添加父目录到路径，以便导入灯光类
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-from drivers.camera.Camera import Camera
+from drivers.camera.Camera import Camera, CAL_SEL_NEW, CAL_SEL_OLD, is_new_calibration
 from utils.i18n import translator
 
 class ConfigUI(object):
@@ -239,6 +239,16 @@ class ConfigUI(object):
         self._add_dropdown(stitch_frame, translator.t('config_ui.cal_sel') + ":", [translator.t('options.old_version'), translator.t('options.new_version')], 7, key="cal_sel", callback=self._on_cal_sel_change)
         self._add_entry(stitch_frame, translator.t('config_ui.stitch_timeout') + ":", "60", 8, unit=translator.t('config_ui.unit.s'), key="stitch_timeout", vcmd=self.v_int)
         self._add_checkbox(stitch_frame, translator.t('config_ui.export_calib_img') + ":", 9, key="export_calib_img")
+        self._add_checkbox(stitch_frame, translator.t('config_ui.seam_refine') + ":", 10, key="seam_refine")
+        self._add_browse_entry(stitch_frame, translator.t('config_ui.calib_file_false') + ":", 11, is_file=True, default_val="", show_status=False, key="calib_file_false", filetypes=[("YAML files", "*.yaml"), ("All files", "*.*")])
+
+        # 流式拼接引擎（stitch_stream_final）：实时转发 + 离线拼接共用，
+        # 逐机常数。旧机器（20260627）参考值：847.965622809793 / 2.908141050525 / 256
+        self._add_checkbox(stitch_frame, translator.t('config_ui.stream_realtime') + ":", 12, key="stream_realtime")
+        self._add_entry(stitch_frame, translator.t('config_ui.stream_d_step_x') + ":", "846.0527400801201", 13, key="stream_d_step_x", vcmd=self.v_float)
+        self._add_entry(stitch_frame, translator.t('config_ui.stream_x_offset_false') + ":", "5.2406", 14, key="stream_x_offset_false", vcmd=self.v_float)
+        self._add_entry(stitch_frame, translator.t('config_ui.stream_seam_inset') + ":", "384", 15, key="stream_seam_inset", vcmd=self.v_int)
+        self._add_checkbox(stitch_frame, translator.t('config_ui.stream_parallax') + ":", 16, key="stream_parallax")
         
         # Add trace-like behavior for real-time update
         self.entries["print_width"].bind("<KeyRelease>", lambda e: self._update_canvas_end_pos())
@@ -554,7 +564,11 @@ class ConfigUI(object):
                 config_data[key] = entry.get()
             else:
                 config_data[key] = entry.get()
-            
+
+        # the dropdown shows localised text; persist a language-independent token
+        config_data["cal_sel"] = (CAL_SEL_NEW if is_new_calibration(config_data.get("cal_sel"))
+                                  else CAL_SEL_OLD)
+
         if config_context.save(config_data):
             config_context.notify_all()
             messagebox.showinfo(translator.t('config_ui.save_success'), translator.t('config_ui.save_success'))
@@ -608,6 +622,11 @@ class ConfigUI(object):
                     if isinstance(self.entries[key], tk.BooleanVar):
                         # Handle boolean values for checkboxes
                         self.entries[key].set(value)
+                    elif key == "cal_sel":
+                        # stored as a token, shown as localised text
+                        self.entries[key].set(
+                            translator.t('options.new_version') if is_new_calibration(value)
+                            else translator.t('options.old_version'))
                     else:
                         self.entries[key].delete(0, tk.END)
                         self.entries[key].insert(0, str(value))
@@ -628,6 +647,10 @@ class ConfigUI(object):
         for key, value in config_context.config.items():
             if key in self.entries:
                 if isinstance(self.entries[key], ttk.Combobox):
+                    if key == "cal_sel":
+                        # stored as a token, shown as localised text
+                        value = translator.t('options.new_version') if is_new_calibration(value) \
+                            else translator.t('options.old_version')
                     self.entries[key].set(value)
                     # Trigger callback manually for dropdowns to update state
                     if key == "forward_mode":

@@ -21,6 +21,7 @@ import numpy as np
 from ui.config.config import ConfigUI
 from ui.config.cfgcxt import config_context
 from drivers.camera.Camera import Camera
+from drivers.camera import StreamStitch
 from drivers.Printer import Printer
 from utils.utils import logger, get_resource_path
 from utils.mp_helper import ProcessProxy
@@ -82,7 +83,7 @@ def stop_qt_viewer_process():
         logger.info("Real-time Qt Viewer process is not running.")
 
 # Global constants
-APP_VERSION = "1.1.1_Beta_07"
+APP_VERSION = "1.1.2_Beta_06"
 
 # Global states
 is_started = False
@@ -217,8 +218,17 @@ def create_camera_instance(fatal_error_cb=None, status_cb=None):
         canvas_end_pos=config.get('canvas_end_pos', 21259),
         overlap_offset_pix=config.get('overlap_offset_pix', 500),
         stitch_timeout=config.get('stitch_timeout', 60),
-        calib_file=config.get('calib_file', r"D:\vsDriverbox\calib.yaml"),
-        cal_sel=config.get('cal_sel', '旧版'),
+        calib_file=config.get('calib_file', r"calib\4_registered_calib.yaml"),
+        calib_file_false=config.get('calib_file_false') or None,
+        cal_sel=config.get('cal_sel', '新版'),
+        # .syscfg stores most values as strings, so a bare bool() would turn
+        # the string "false" into True
+        seam_refine=str(config.get('seam_refine', True)).strip().lower() in ('1', 'true', 'yes', 'on'),
+        # 实时转发路径的流式拼接引擎（StreamRealtime）
+        stream_realtime=str(config.get('stream_realtime', True)).strip().lower() in ('1', 'true', 'yes', 'on'),
+        stream_d_step_x=(lambda v: float(v) if str(v).strip() else None)(config.get('stream_d_step_x', '')),
+        stream_x_offset_false=(lambda v: float(v) if str(v).strip() else None)(config.get('stream_x_offset_false', '')),
+        stream_seam_inset=(lambda v: int(v) if str(v).strip() else None)(config.get('stream_seam_inset', '')),
         board_comm_addr=config.get('board_comm_addr', "192.168.1.99"),
         board_comm_port=config.get('board_comm_port', 502),
         board_comm_timeout=config.get('board_comm_timeout', 3000),
@@ -421,7 +431,6 @@ def on_change_language(lang_code):
 def on_image_stitch(icon, item):
     """Handles offline image stitching from a directory of JSON and images in a separate thread."""
     def run_stitch():
-        global camera_instance
         try:
             # 1. Ask for directory (Must be in main thread or handle carefully with tk)
             # Actually, pystray callbacks are often already in a separate thread.
@@ -441,45 +450,45 @@ def on_image_stitch(icon, item):
                 root.destroy()
                 return
 
-            # 3. Call stitch_from_json
+            # 3. Run the streaming stitcher (v1 + parallax compensation, in-process)
             update_activity_status('tool', True)
             try:
-                temp_instance = False
-                cam = camera_instance
-                if cam is None:
-                    cam = create_camera_instance(
-                        fatal_error_cb=on_fatal_error,
-                        status_cb=on_camera_status_change
-                    )
-                    temp_instance = True
-                
-                # Ensure config/yaml is loaded even if system is not "started"
-                # This fixes stitching failure due to missing calibration parameters
-                cam.load_config()
-                
-                # Determine target JSON
-                target_json = "LocalImageInfos.json"
-                if target_json not in json_files:
-                    target_json = json_files[0]
-                
-                # Use configured stitch timeout
-                stitch_timeout = float(config_context.config.get('stitch_timeout', 60.0))
-                
-                logger.info(f"Starting image stitching from {path} using {target_json} with timeout {stitch_timeout}s")
-                stitched_img_np = cam.stitch_from_json(path, target_json, timeout=stitch_timeout)
-                
+                cfg = config_context.config
+                true_yaml = cfg.get('calib_file') or ''
+                false_yaml = cfg.get('calib_file_false') or ''
+                if not true_yaml or not false_yaml:
+                    raise RuntimeError("calib_file / calib_file_false not configured "
+                                       "(the stream stitcher needs BOTH directions)")
+
+                logger.info(f"Starting stream stitching from {path} "
+                            f"(true={true_yaml}, false={false_yaml})")
+                result = StreamStitch.run_stream_stitch(
+                    data_dir=path,
+                    true_yaml=true_yaml,
+                    false_yaml=false_yaml,
+                    output_dir=os.path.join(path, "stitch_stream"),
+                    workers=int(cfg.get('stream_workers', StreamStitch.DEFAULT_WORKERS)),
+                    d_step_x=float(cfg.get('stream_d_step_x', StreamStitch.DEFAULT_D_STEP_X)),
+                    x_offset_false=float(cfg.get('stream_x_offset_false', StreamStitch.DEFAULT_X_OFFSET_FALSE)),
+                    seam_inset=int(cfg.get('stream_seam_inset', StreamStitch.DEFAULT_SEAM_INSET)),
+                    parallax=str(cfg.get('stream_parallax', True)).strip().lower() in ('1', 'true', 'yes', 'on'),
+                    fast=str(cfg.get('stream_fast', True)).strip().lower() in ('1', 'true', 'yes', 'on'),
+                    no_diag=str(cfg.get('stream_no_diag', True)).strip().lower() in ('1', 'true', 'yes', 'on'),
+                    gpu_warp=str(cfg.get('stream_gpu_warp', False)).strip().lower() in ('1', 'true', 'yes', 'on'),
+                    log_cb=lambda m: logger.info(f"Stitch: {m}"))
+
+                stitched_img_np = result['canvas']
                 if isinstance(stitched_img_np, np.ndarray):
-                    # Save the result with correct DPI
+                    # Save the result with correct DPI (same convention as before,
+                    # LZW to keep the wide canvas manageable)
                     save_path = os.path.join(path, "stitched_result.tif")
-                    dpi_val = cam.get_dpi()
-                    Image.fromarray(stitched_img_np).save(save_path, dpi=(dpi_val, dpi_val))
+                    dpi_val = int(cfg.get('dpi', 300))
+                    Image.fromarray(stitched_img_np).save(save_path, dpi=(dpi_val, dpi_val),
+                                                         compression="tiff_lzw")
+                    logger.info(f"Stream stitching completed: {save_path} "
+                                f"(source tif {result['tif_path']}, "
+                                f"parallax_compensated={result['compensated']})")
                     messagebox.showinfo(translator.t('config_ui.stitch_success'), f"{translator.t('config_ui.stitch_success')}：\n{save_path}", parent=root)
-                    logger.info(f"Image stitching completed and saved to {save_path}")
-                elif isinstance(stitched_img_np, tuple) and not stitched_img_np[0]:
-                    # ProcessProxy error return
-                    error_detail = stitched_img_np[1]
-                    logger.error(f"Image stitching process error: {error_detail}")
-                    messagebox.showerror(translator.t('config_ui.stitch_failed'), f"{translator.t('config_ui.stitch_process_error')}：\n{error_detail}", parent=root)
                 else:
                     messagebox.showwarning(translator.t('config_ui.stitch_failed'), translator.t('config_ui.stitch_result_empty'), parent=root)
             finally:

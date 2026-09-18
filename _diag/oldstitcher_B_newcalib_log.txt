@@ -1,0 +1,140 @@
+Camera: Calibration cost: 223.65ms
+Camera: seam dx=None src=model applied=+0.000 shift=+0 s=0.000e+00 A=+0.000 [cold start (s=0, A=0)] no comparable predecessor
+Camera: Calibration cost: 247.50ms
+Camera: seam dx=-3.305 src=measured applied=-3.305 shift=-3 s=0.000e+00 A=+0.000 [cold start (s=0, A=0)]
+Camera: Calibration cost: 224.84ms
+Camera: seam dx=+1.844 src=measured applied=+1.844 shift=-1 s=0.000e+00 A=+0.000 [cold start (s=0, A=0)]
+Camera: Calibration cost: 243.96ms
+Camera: seam dx=-2.969 src=measured applied=-2.969 shift=-4 s=0.000e+00 A=+0.000 [cold start (s=0, A=0)]
+Camera: Calibration cost: 225.41ms
+Camera: seam dx=+2.849 src=measured applied=+2.849 shift=-2 s=-4.736e-04 A=+2.742 [fitted]
+Camera: Calibration cost: 245.21ms
+Camera: seam dx=+1.576 src=measured applied=+1.576 shift=-3 s=-1.587e-04 A=+2.479 [fitted]
+Camera: Calibration cost: 224.70ms
+Camera: seam dx=+1.010 src=measured applied=+1.010 shift=+0 s=4.312e-05 A=+2.647 [fitted]
+Camera: Calibration cost: 240.00ms
+Camera: seam dx=-1.568 src=measured applied=-1.568 shift=-4 s=-1.918e-04 A=+2.843 [fitted]
+Camera: Calibration cost: 225.80ms
+Camera: seam dx=+1.095 src=measured applied=+1.095 shift=+0 s=-2.769e-05 A=+2.980 [fitted]
+Camera: Calibration cost: 238.42ms
+Camera: seam dx=-0.177 src=measured applied=-0.177 shift=-3 s=-4.894e-05 A=+2.998 [fitted]
+Camera: Calibration cost: 228.14ms
+Camera: seam dx=-0.064 src=measured applied=-0.064 shift=+0 s=-5.659e-05 A=+2.992 [fitted]
+Camera: Calibration cost: 243.58ms
+Camera: seam dx=+0.432 src=measured applied=+0.432 shift=-3 s=-1.338e-05 A=+2.956 [fitted]
+Camera: Calibration cost: 225.21ms
+Camera: seam dx=-0.960 src=measured applied=-0.960 shift=-1 s=-1.093e-04 A=+2.876 [fitted]
+Camera: Calibration cost: 240.00ms
+Camera: seam dx=-0.004 src=measured applied=-0.004 shift=-4 s=-1.096e-04 A=+2.876 [fitted]
+Camera: Calibration cost: 223.90ms
+Camera: seam dx=+0.596 src=measured applied=+0.596 shift=-1 s=-5.854e-05 A=+2.918 [fitted]
+Camera: Calibration cost: 239.27ms
+Camera: seam dx=+0.138 src=measured applied=+0.138 shift=-4 s=-4.822e-05 A=+2.910 [fitted]
+Camera: Calibration cost: 229.62ms
+Camera: seam dx=-0.388 src=measured applied=-0.388 shift=-1 s=-7.730e-05 A=+2.886 [fitted]
+Camera: Calibration cost: 242.12ms
+Camera: seam dx=+0.187 src=measured applied=+0.187 shift=-4 s=-6.482e-05 A=+2.875 [fitted]
+Camera: Calibration cost: 223.00ms
+Camera: seam dx=+0.758 src=measured applied=+0.758 shift=+0 s=-1.430e-05 A=+2.917 [fitted]
+Camera: Calibration cost: 242.53ms
+Camera: seam dx=-1.210 src=measured applied=-1.210 shift=-4 s=-8.683e-05 A=+2.978 [fitted]
+Camera: Calibration cost: 229.76ms
+Camera: seam dx=+0.151 src=measured applied=+0.151 shift=-1 s=-7.777e-05 A=+2.985 [fitted]
+Camera: Calibration cost: 240.26ms
+Camera: seam dx=+0.020 src=measured applied=+0.020 shift=-4 s=-7.665e-05 A=+2.984 [fitted]
+Camera: Calibration cost: 225.98ms
+Camera: seam dx=-0.076 src=measured applied=-0.076 shift=-1 s=-8.079e-05 A=+2.981 [fitted]
+Camera: Calibration cost: 243.82ms
+Camera: seam dx=+1.384 src=measured applied=+1.384 shift=-3 s=-1.162e-05 A=+2.923 [fitted]
+Camera: Calibration cost: 222.98ms
+Camera: seam dx=-0.895 src=measured applied=-0.895 shift=-1 s=-5.635e-05 A=+2.886 [fitted]
+Camera: Calibration cost: 250.45ms
+Camera: seam dx=+0.221 src=measured applied=+0.221 shift=-4 s=-4.614e-05 A=+2.877 [fitted]
+Camera: Calibration cost: 221.19ms
+Camera: seam dx=+0.789 src=measured applied=+0.789 shift=+0 s=-9.743e-06 A=+2.908 [fitted]
+Camera: Calibration cost: 243.96ms
+Camera: seam dx=-0.921 src=measured applied=-0.921 shift=-4 s=-4.920e-05 A=+2.941 [fitted]
+Camera: Calibration cost: 223.04ms
+Camera: seam dx=+0.754 src=measured applied=+0.754 shift=+0 s=-1.689e-05 A=+2.968 [fitted]
+Camera: Calibration cost: 238.82ms
+Camera: seam dx=-1.673 src=measured applied=-1.673 shift=-5 s=-8.375e-05 A=+3.023 [fitted]
+Camera: Calibration cost: 223.82ms
+Camera: seam dx=+1.983 src=measured applied=+1.983 shift=+0 s=-4.508e-06 A=+3.089 [fitted]
+Camera: Calibration cost: 247.56ms
+Camera: seam dx=-1.182 src=measured applied=-1.182 shift=-4 s=-4.882e-05 A=+3.126 [fitted]
+Camera: Calibration cost: 223.45ms
+Camera: seam dx=+0.732 src=measured applied=+0.732 shift=-1 s=-2.137e-05 A=+3.149 [fitted]
+Camera: Calibration cost: 246.72ms
+Camera: seam dx=+0.693 src=measured applied=+0.693 shift=-3 s=3.064e-06 A=+3.129 [fitted]
+Camera: Calibration cost: 219.02ms
+Camera: seam dx=-0.956 src=measured applied=-0.956 shift=-1 s=-3.067e-05 A=+3.101 [fitted]
+Camera: Calibration cost: 245.03ms
+Camera: seam dx=+1.002 src=measured applied=+1.002 shift=-3 s=2.715e-06 A=+3.073 [fitted]
+Camera: Calibration cost: 224.43ms
+Camera: seam dx=+0.008 src=measured applied=+0.008 shift=+0 s=2.981e-06 A=+3.073 [fitted]
+Camera: Calibration cost: 248.80ms
+Camera: seam dx=-0.844 src=measured applied=-0.844 shift=-4 s=-2.364e-05 A=+3.095 [fitted]
+Camera: Calibration cost: 229.23ms
+Camera: seam dx=+0.072 src=measured applied=+0.072 shift=-1 s=-2.138e-05 A=+3.097 [fitted]
+Camera: Calibration cost: 247.37ms
+Camera: seam dx=+0.380 src=measured applied=+0.380 shift=-3 s=-9.983e-06 A=+3.088 [fitted]
+Camera: Calibration cost: 232.80ms
+Camera: seam dx=-0.222 src=measured applied=-0.222 shift=-1 s=-1.663e-05 A=+3.082 [fitted]
+Camera: Calibration cost: 251.49ms
+Camera: seam dx=+0.052 src=measured applied=+0.052 shift=-4 s=-1.515e-05 A=+3.081 [fitted]
+Camera: Calibration cost: 225.92ms
+Camera: seam dx=+0.765 src=measured applied=+0.765 shift=+0 s=6.696e-06 A=+3.099 [fitted]
+Camera: Calibration cost: 253.31ms
+Camera: seam dx=-0.623 src=measured applied=-0.623 shift=-3 s=-1.029e-05 A=+3.113 [fitted]
+Camera: Calibration cost: 227.03ms
+Camera: seam dx=-1.265 src=measured applied=-1.265 shift=-2 s=-4.476e-05 A=+3.085 [fitted]
+Camera: Calibration cost: 252.08ms
+Camera: seam dx=+1.388 src=measured applied=+1.388 shift=-3 s=-8.572e-06 A=+3.054 [fitted]
+Camera: Calibration cost: 228.59ms
+Camera: seam dx=-0.244 src=measured applied=-0.244 shift=-1 s=-1.493e-05 A=+3.049 [fitted]
+Camera: Calibration cost: 256.99ms
+Camera: seam dx=+0.312 src=measured applied=+0.312 shift=-3 s=-7.133e-06 A=+3.043 [fitted]
+Camera: Calibration cost: 228.23ms
+Camera: seam dx=-0.115 src=measured applied=-0.115 shift=+0 s=-1.000e-05 A=+3.040 [fitted]
+Camera: Calibration cost: 260.02ms
+Camera: seam dx=-0.808 src=measured applied=-0.808 shift=-4 s=-2.938e-05 A=+3.056 [fitted]
+Camera: Calibration cost: 241.36ms
+Camera: seam dx=-0.063 src=measured applied=-0.063 shift=-1 s=-3.088e-05 A=+3.055 [fitted]
+Camera: Calibration cost: 258.69ms
+Camera: seam dx=+0.512 src=measured applied=+0.512 shift=-4 s=-1.907e-05 A=+3.045 [fitted]
+Camera: Calibration cost: 246.90ms
+Camera: seam dx=-0.278 src=measured applied=-0.278 shift=-1 s=-2.548e-05 A=+3.040 [fitted]
+Camera: Calibration cost: 265.23ms
+Camera: seam dx=+0.119 src=measured applied=+0.119 shift=-4 s=-2.284e-05 A=+3.038 [fitted]
+Camera: Calibration cost: 235.66ms
+Camera: seam dx=+0.412 src=measured applied=+0.412 shift=-1 s=-1.369e-05 A=+3.045 [fitted]
+Camera: Calibration cost: 266.32ms
+Camera: seam dx=+0.351 src=measured applied=+0.351 shift=-3 s=-6.163e-06 A=+3.039 [fitted]
+Camera: Calibration cost: 241.49ms
+Camera: seam dx=-0.194 src=measured applied=-0.194 shift=+0 s=-1.031e-05 A=+3.036 [fitted]
+Camera: Calibration cost: 264.66ms
+Camera: seam dx=+0.072 src=measured applied=+0.072 shift=-3 s=-8.835e-06 A=+3.034 [fitted]
+Camera: Calibration cost: 240.46ms
+Camera: seam dx=-1.048 src=measured applied=-1.048 shift=-1 s=-3.050e-05 A=+3.016 [fitted]
+Camera: Calibration cost: 261.91ms
+Camera: seam dx=+0.863 src=measured applied=+0.863 shift=-4 s=-1.326e-05 A=+3.002 [fitted]
+Camera: Calibration cost: 240.74ms
+Camera: seam dx=+0.756 src=measured applied=+0.756 shift=+0 s=1.848e-06 A=+3.015 [fitted]
+Camera: Calibration cost: 266.82ms
+Camera: seam dx=-0.711 src=measured applied=-0.711 shift=-4 s=-1.191e-05 A=+3.026 [fitted]
+Camera: Calibration cost: 242.23ms
+Camera: seam dx=-0.155 src=measured applied=-0.155 shift=-1 s=-1.490e-05 A=+3.024 [fitted]
+Camera: Calibration cost: 265.15ms
+Camera: seam dx=+0.245 src=measured applied=+0.245 shift=-4 s=-1.032e-05 A=+3.020 [fitted]
+Camera: Calibration cost: 241.55ms
+Camera: seam dx=+0.877 src=measured applied=+0.877 shift=+0 s=6.109e-06 A=+3.033 [fitted]
+Camera: Calibration cost: 274.43ms
+Camera: seam dx=-0.678 src=measured applied=-0.678 shift=-3 s=-6.201e-06 A=+3.044 [fitted]
+Camera: Calibration cost: 237.99ms
+Camera: seam dx=-0.224 src=measured applied=-0.224 shift=-1 s=-1.027e-05 A=+3.040 [fitted]
+Camera: Calibration cost: 266.12ms
+Camera: seam dx=+0.083 src=measured applied=+0.083 shift=-4 s=-8.816e-06 A=+3.039 [fitted]
+Camera: Calibration cost: 244.92ms
+Camera: seam dx=+0.291 src=measured applied=+0.291 shift=+0 s=-3.687e-06 A=+3.043 [fitted]
+Camera: Calibration cost: 269.23ms
+Camera: seam dx=-0.958 src=measured applied=-0.958 shift=-4 s=-2.010e-05 A=+3.057 [fitted]

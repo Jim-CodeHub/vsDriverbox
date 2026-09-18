@@ -16,11 +16,45 @@ import numpy as np
 import drivers.camera.IKapC as IKapC
 import drivers.camera.IKapCDef as IKapCDef
 import drivers.camera.Charuco as Charuco
+import drivers.camera.SeamRefine as SeamRefine
 from numpy import ndarray
 from dataclasses import dataclass
 from PIL import Image
 from pymodbus import ModbusException
 from pymodbus.client import ModbusTcpClient
+
+# Modbus device id kwarg: pymodbus renamed `slave=` to `device_id=` (old name
+# fully removed in 3.14, e.g. the digitalpainter build env ships 3.14.0 —
+# "read_holding_registers() got an unexpected keyword argument 'slave'").
+# Resolve the accepted name once at import so the code runs on both old and
+# new pymodbus without knowing the exact cutover version.
+def _modbus_id_kwarg() -> dict:
+    try:
+        import inspect
+        params = inspect.signature(
+            ModbusTcpClient.read_holding_registers).parameters
+        return {"device_id": 0} if "device_id" in params else {"slave": 0}
+    except Exception:
+        # 探测失败时按当前打包环境（pymodbus 3.14）的写法兜底，
+        # 不要退回 slave= —— 那样会静默复现崩溃。
+        return {"device_id": 0}
+
+_MODBUS_ID = _modbus_id_kwarg()
+
+# `cal_sel` used to be persisted as the LOCALISED dropdown text while the driver
+# compared it against the hard-coded "新版", so a user on the English or
+# Vietnamese UI could pick "New Version" and silently keep the legacy
+# calibration path. The config now stores a stable token; every historical
+# spelling is still accepted so existing installs keep working untouched.
+CAL_SEL_NEW = "new"
+CAL_SEL_OLD = "old"
+_CAL_SEL_NEW_ALIASES = frozenset((CAL_SEL_NEW, "新版", "New Version", "Phiên bản mới"))
+
+
+def is_new_calibration(cal_sel) -> bool:
+    """True when `cal_sel` selects the new Charuco calibration, in any spelling."""
+    return str(cal_sel).strip() in _CAL_SEL_NEW_ALIASES
+
 
 class Camera(object):
     r""" IKap camera driver
@@ -46,8 +80,15 @@ class Camera(object):
                  overlap_offset_pix=500,
                  stitch_timeout=60,
                  calib_file=r"D:\vsDriverbox\calib.yaml",
+                 calib_file_false=None,
                  cal_sel="旧版",
                  export_calib_img=False,
+                 seam_refine=True,
+                 # 实时转发路径的流式拼接引擎（StreamRealtime）
+                 stream_realtime=False,
+                 stream_d_step_x=None,
+                 stream_x_offset_false=None,
+                 stream_seam_inset=None,
                  # Board Settings
                  board_comm_addr="192.168.1.99",
                  board_comm_port=502,
@@ -140,7 +181,7 @@ class Camera(object):
 
         self.__StTQ_inf = queue.Queue()
         self.__StTQ_img = queue.Queue()
-        self.__stitch = Camera.ImageStitch(x_base_L=int(stitch_left_ref), x_base_R=int(stitch_right_ref), x_invert=int(img_stitch_offset), canvas_start=int(canvas_start_pos), canvas_width=self.__canvas_width, DPI=self.__Image_DPI, hold_pix=int(overlap_offset_pix), YamlPath=calib_file, log_cb=self.log_cb, cal_sel=cal_sel, export_calib_img=export_calib_img)
+        self.__stitch = Camera.ImageStitch(x_base_L=int(stitch_left_ref), x_base_R=int(stitch_right_ref), x_invert=int(img_stitch_offset), canvas_start=int(canvas_start_pos), canvas_width=self.__canvas_width, DPI=self.__Image_DPI, hold_pix=int(overlap_offset_pix), YamlPath=calib_file, log_cb=self.log_cb, cal_sel=cal_sel, export_calib_img=export_calib_img, seam_refine=bool(seam_refine), YamlPathFalse=calib_file_false, stream_realtime=bool(stream_realtime), stream_d_step_x=stream_d_step_x, stream_x_offset_false=stream_x_offset_false, stream_seam_inset=stream_seam_inset)
         threading.Thread(target=self.__St_Thread, daemon=True).start()
         threading.Thread(target=self.__Dt_Thread, daemon=True).start()
 
@@ -273,6 +314,10 @@ class Camera(object):
             if not self.__stitch.load_calib_yaml():
                 self.stop("Yaml file is missing")
                 return False, "标定文件未选定或路径错误"
+
+            # 每次启动采集 = 新的一卷：拼接链状态归零
+            # （旧引擎的 StepCopy / 闭环，流式引擎的全部状态）
+            self.__stitch.step_Reset()
 
             # 1. connect to modbus
             if not self.__modbus.connect():
@@ -867,20 +912,14 @@ class Camera(object):
                     if self.__realtime_display_enabled and self.__image_queue is not None:
                         self._log("Put image to realtime display queue")
 
-                        fresh, y_step = self.__stitch.stitch_from_ram(_image=image, Step=_Info["Step"], Direction=_Info["Direction"], MotionStartPoint=_Info["MotionStartPoint"])
-
-                        self.__image_queue.put(fresh.copy())
+                        for fresh, _y_step in self.__stitch.stitch_frame(image, _Info["Step"], _Info["Direction"], _Info["MotionStartPoint"]):
+                            self.__image_queue.put(fresh.copy())
                 else:
                     self._log(f"Stitching...image={image.shape}, Step={_Info['Step']}, Direction={_Info['Direction']}, MotionStartPoint={_Info['MotionStartPoint']} ")
 
-                    fresh, y_step = self.__stitch.stitch_from_ram(_image=image, Step=_Info["Step"], Direction=_Info["Direction"], MotionStartPoint=_Info["MotionStartPoint"])
-
-                    # if 0 == self.__frame_inx:
-                    #     self.__DtTQueue.put((self.__stitch.get_addons(), 834))
-                    #
-                    # self.__frame_inx += 1
-
-                    self.__DtTQueue.put((fresh.copy(), y_step))
+                    # 流式引擎一次可能释放多条带（MSP=0 首帧积压），逐条转发
+                    for fresh, y_step in self.__stitch.stitch_frame(image, _Info["Step"], _Info["Direction"], _Info["MotionStartPoint"]):
+                        self.__DtTQueue.put((fresh.copy(), y_step))
                 self.__StTQ_inf.task_done()
                 self.__StTQ_img.task_done()
             except queue.Empty:
@@ -966,7 +1005,7 @@ class Camera(object):
             Direction: bool
             MotionStartPoint: float
 
-        def __init__(self, x_base_L:int = 2461790, x_base_R:int = 29057700, x_invert:int = 629, canvas_start = 7906, canvas_width:int = 21259, DPI:int = 300, hold_pix:int=500, YamlPath=None, log_cb=None, cal_sel="旧版", export_calib_img=False) -> None:
+        def __init__(self, x_base_L:int = 2461790, x_base_R:int = 29057700, x_invert:int = 629, canvas_start = 7906, canvas_width:int = 21259, DPI:int = 300, hold_pix:int=500, YamlPath=None, log_cb=None, cal_sel="旧版", export_calib_img=False, seam_refine:bool=True, YamlPathFalse=None, stream_realtime:bool=False, stream_d_step_x=None, stream_x_offset_false=None, stream_seam_inset=None) -> None:
             """ ImageStitch init
             :param x_base_L: X left base position
             :param x_base_R: X right base position
@@ -979,6 +1018,20 @@ class Camera(object):
             :param log_cb: log callback
             :param cal_sel: calibration selection ("旧版" or "新版")
             :param export_calib_img: whether to export calibrated images
+            :param seam_refine: close the loop on the seam - measure every strip
+                   against its predecessor and correct the placement instead of
+                   trusting the encoder alone. See SeamRefine.py. OFF by default:
+                   with it off this class behaves exactly as before.
+            :param YamlPathFalse: calibration for the REVERSE pass, i.e. the
+                   `3_hflip_registered_*` half of a registered pair. When given,
+                   each direction is rectified with its own calibration onto ONE
+                   registered grid and the reverse frame is flipped on the sensor
+                   axis instead of the scan axis. When omitted the single-YAML
+                   behaviour is unchanged.
+            :param stream_realtime: stitch_from_ram 的引擎换成流式拼接器
+                   （StreamRealtime，C 级缝质量）。 False = 旧行为。
+            :param stream_d_step_x / stream_x_offset_false / stream_seam_inset:
+                   流式引擎的逐机常数（缺省用 StreamRealtime 的内置缺省）
             :return:None
             :raises None
             :note : Yaml file SHALL BE loaded (by load_calib_yaml()) before any stitch function used
@@ -994,16 +1047,31 @@ class Camera(object):
             self.__upOffset = hold_pix
 
             self.__YamlPath = YamlPath
+            self.__YamlPathFalse = YamlPathFalse
             self.__log_cb = log_cb
 
             self.__StepCopy = 0
 
             self.__params = None
+            self.__params_false = None
 
-            self.__calsel = True if cal_sel == "新版" else False
+            self.__calsel = is_new_calibration(cal_sel)
             self.__export_calib_img = export_calib_img
 
+            self.__refiner = SeamRefine.SeamRefine() if seam_refine else None
+
+            # ---- 实时流式引擎（StreamRealtime）----
+            self.__stream_realtime = bool(stream_realtime)
+            self.__stream_rt_args = dict(
+                d_step_x=stream_d_step_x, x_offset_false=stream_x_offset_false,
+                seam_inset=stream_seam_inset)
+            self.__stream_rt = None          # 惰性构造（首次 stitch_frame 时）
+            self.__x_base_L_raw = int(x_base_L)   # 原始编码器单位（rt 锚定用）
+            self.__x_base_R_raw = int(x_base_R)
+
         def load_calib_yaml(self) -> bool:
+            self.__YamlPath = self._resolve_calib_path(self.__YamlPath)
+            self.__YamlPathFalse = self._resolve_calib_path(self.__YamlPathFalse)
             if self.__YamlPath and os.path.exists(self.__YamlPath):
                 try:
                     if self.__calsel:
@@ -1012,11 +1080,97 @@ class Camera(object):
                     else:
                         with open(self.__YamlPath, 'r', encoding='utf-8') as f:
                             self.__params = yaml.safe_load(f)
-                    return True
                 except Exception as e:
+                    if self.__log_cb:
+                        self.__log_cb(f"Camera: calibration {self.__YamlPath} failed to load: {e}")
                     return False
 
+                # optional second calibration for the reverse pass
+                self.__params_false = None
+                if self.__calsel and self.__YamlPathFalse and os.path.exists(self.__YamlPathFalse):
+                    try:
+                        self.__params_false = Charuco.Calibration.from_yaml(self.__YamlPathFalse)
+                    except Exception as e:
+                        if self.__log_cb:
+                            self.__log_cb(f"Camera: reverse calibration {self.__YamlPathFalse} failed to load: {e}")
+                        return False
+
+                # The two calibrations only mean anything as a registered PAIR.
+                # A stale `calib_file` next to a shipped `calib_file_false` would
+                # rectify the two scan directions onto grids from different
+                # calibrations - geometrically inconsistent, and worse than
+                # either one alone. Identical `full_ranges_mm` is the shared
+                # fingerprint of one registration run; `coordinate_offset_mm` is
+                # expected to differ, that is what distinguishes the directions.
+                if self.__params_false is not None and not self._compatible_pair(
+                        self.__params, self.__params_false):
+                    if self.__log_cb:
+                        self.__log_cb("Camera: {} and {} are not a compatible calibration pair - "
+                                      "ignoring the reverse calibration and falling back to the "
+                                      "legacy flipped single-calibration path".format(
+                                          self.__YamlPath, self.__YamlPathFalse))
+                    self.__params_false = None
+
+                # `target_grid` only makes sense for a registered PAIR: it is what
+                # puts both scan directions on one grid. With a single YAML there
+                # is nothing to register against, so honouring it would silently
+                # move the output grid of an existing installation. Drop it and
+                # keep inferring the grid per image, exactly as before.
+                if self.__params_false is None and getattr(self.__params, "target_grid", None) is not None:
+                    self.__params.target_grid = None
+                    if self.__log_cb:
+                        self.__log_cb("Camera: single calibration, target_grid ignored (legacy grid kept)")
+                return True
+
             return False
+
+        @staticmethod
+        def _compatible_pair(a, b) -> bool:
+            """Cheap sanity check that two calibrations can be used as a pair.
+
+            This is a COMPATIBILITY check, not a provenance one. The YAML carries
+            no registration id, and `full_ranges_mm` is derived from the physical
+            board, so two runs against the same board look alike - a pair from
+            two different runs of the SAME generation cannot be detected here.
+            What it does catch is the realistic accident: a stale `calib_file`
+            from an older calibration generation left next to a freshly shipped
+            reverse YAML. Those differ in the target_grid feature set (schema 6
+            adds `coordinate_affine_mm`) and usually in the board ranges too.
+            """
+            ta = getattr(a, "target_grid", None)
+            tb = getattr(b, "target_grid", None)
+            if not isinstance(ta, dict) or not isinstance(tb, dict):
+                return False
+            if set(ta) != set(tb):
+                return False
+            # `coordinate_offset_mm` is what registration writes: an unregistered
+            # calibration leaves it null. Pairing one of those with a registered
+            # YAML is the mistake that actually happens in the field.
+            if not isinstance(ta.get("coordinate_offset_mm"), dict) \
+                    or not isinstance(tb.get("coordinate_offset_mm"), dict):
+                return False
+            for key in ("pixels_per_mm", "y_scale", "orientation"):
+                if ta.get(key) != tb.get(key):
+                    return False
+            ra, rb = ta.get("full_ranges_mm"), tb.get("full_ranges_mm")
+            if not isinstance(ra, dict) or not isinstance(rb, dict) or set(ra) != set(rb):
+                return False
+            return all(abs(float(ra[k]) - float(rb[k])) <= 1e-6 for k in ra)
+
+        @staticmethod
+        def _resolve_calib_path(path):
+            """Allow calibration paths to be relative to the install directory.
+
+            The shipped pair lives in `calib\\` next to the executable, so the
+            default config can name it without knowing the install location.
+            Absolute paths and paths that already resolve are returned untouched.
+            """
+            if not path or os.path.isabs(path) or os.path.exists(path):
+                return path
+            base = getattr(sys, "_MEIPASS", None) or os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            candidate = os.path.join(base, path)
+            return candidate if os.path.exists(candidate) else path
 
         def calibration(self, img, params):
             """Rectify image using Charuco calibration parameters
@@ -1032,15 +1186,48 @@ class Camera(object):
             else:
                 return Charuco.calibration_origin(img, params)
 
-        def _stitch_unit(self, image:np.ndarray, overlap:int, direction:bool, start_pos:int) -> ndarray:
+        def rectify(self, img, direction:bool):
+            """Rectify one raw frame according to its scan direction.
+
+            With one calibration the reverse pass is faked by flipping the SCAN
+            axis (axis 0) and reusing the forward calibration. That cannot express
+            the relationship between the two passes at all - the reverse strips
+            come out with a constant displacement, which is what the hand-tuned
+            `x_invert` exists to paper over.
+
+            With a registered pair the reverse pass gets its own calibration and
+            the flip moves to the SENSOR axis (axis 1) - that is what "hflip" in
+            `3_hflip_registered_calib.yaml` means, and the two axes are NOT
+            interchangeable: the axis models are only valid for the flip they were
+            fitted with.
+            """
+            if self.__params_false is not None:
+                if direction:
+                    return self.calibration(img, self.__params)
+                return self.calibration(img[:, ::-1], self.__params_false)
+            return self.calibration(img, self.__params) if direction else self.calibration(img[::-1, ...], self.__params)
+
+        def _stitch_unit(self, image:np.ndarray, overlap:int, direction:bool, start_pos:int, extra_col_shift:int = 0, want_probe:bool = False, warp_knots = None, collect_addon:bool = True) -> ndarray:
             """ Stitching image to canvas
             :param image: first/previous image
             :param overlap: Y axis overlap (unit:pixel)
             :param direction: True for Left->Right and False for invert
             :param start_pos: X axis start position (unit:pixel)
-            :return: fresh image, in type 'np.ndarray'
+            :param extra_col_shift: additional integer column shift from the
+                   closed loop. Folded into the cut offset rather than into the
+                   pad: cutting at [x_s+c, x_e+c) makes the content appear
+                   shifted LEFT by c, which is exactly equivalent to adding c to
+                   `alignment`, but costs nothing and resamples nothing.
+            :param want_probe: also return the band of THIS strip that the
+                   PREVIOUS strip already pasted, for the pair measurement
+            :param warp_knots: sub-pixel + per-window column displacements,
+                   applied before the cut so the columns pulled in at the edges
+                   are real content
+            :return: fresh image, in type 'np.ndarray' (plus the probe band when
+                     `want_probe`)
             :raises None
-            :notes: X axis direction
+            :notes: with extra_col_shift=0, want_probe=False and warp_knots=None
+                    this is the original behaviour, byte for byte
             """
 
             """------------------------------------------------------------------- X axis handler --------------------------------------------------------"""
@@ -1057,15 +1244,48 @@ class Camera(object):
 
             """---------------------------------------------------------------------- Cut Width ----------------------------------------------------------"""
 
-            _image_ = _image_[:, self.__x_s_cut_:self.__x_e_cut_]
+            cut_lo = self.__x_s_cut_ + int(extra_col_shift)
+            cut_hi = self.__x_e_cut_ + int(extra_col_shift)
+            # only guard the shifted case - an unshifted window that overhangs the
+            # strip used to clip silently, and that behaviour is left alone.
+            #
+            # The closed loop follows the fabric, so on a skewed web the shift
+            # grows without bound (~2.7 px per strip measured). The margin is
+            # finite: with a 30781-wide rectified strip and a [7906,29165) window
+            # there are 1616 px to the right and 7906 px to the left, i.e. roughly
+            # 590 strips of drift in the tight direction. Deliberately raising
+            # rather than clamping: a clamped cut would keep printing with a
+            # silently wrong seam, and stopping is the lesser damage.
+            if extra_col_shift != 0 and (cut_lo < 0 or cut_hi > _image_.shape[1]):
+                room = min(self.__x_s_cut_, _image_.shape[1] - self.__x_e_cut_)
+                raise ValueError(
+                    f"column shift {extra_col_shift} pushes the cut window "
+                    f"[{cut_lo},{cut_hi}) outside the rectified strip "
+                    f"(width {_image_.shape[1]}); usable drift was +-{room}px. "
+                    f"The web skew has consumed the cut margin - recalibrate or "
+                    f"re-square the fabric before restarting.")
+
+            if warp_knots is not None:
+                _image_ = SeamRefine.apply_column_warp(_image_, warp_knots, cut_lo, cut_hi)
+
+            _image_ = _image_[:, cut_lo:cut_hi]
 
             """------------------------------------------------------------------- Y axis handler --------------------------------------------------------"""
 
             fresh = _image_[overlap-self.__upOffset:_image_.shape[0] - self.__upOffset, :]
 
             """------------------------------------------------------------------- Y axis handler --------------------------------------------------------"""
-            if 0 == self.__StepCopy:
+            if 0 == self.__StepCopy and collect_addon:
                 self.__add_ons_.append(_image_[overlap - self.__upOffset - 834:overlap - self.__upOffset, :].copy())
+
+            if want_probe:
+                # R_i[j] is the same fabric as R_{i-1}[j + forward], so
+                # R_i[probe] holds exactly what R_{i-1} pasted as its fresh band.
+                # These are the same row indices the first-strip add-on above uses.
+                forward = _image_.shape[0] - overlap
+                p0 = overlap - self.__upOffset - forward
+                p1 = overlap - self.__upOffset
+                return fresh, (_image_[p0:p1, :] if p0 >= 0 else None)
 
             return fresh
 
@@ -1080,7 +1300,7 @@ class Camera(object):
             :notes: This function automatically saves the step data from the previous stitching
             """
             t_start = time.perf_counter()
-            _image_ = self.calibration(_image, self.__params) if Direction else self.calibration(_image[::-1, ...], self.__params)
+            _image_ = self.rectify(_image, Direction)
 
             t_end = time.perf_counter()
 
@@ -1089,11 +1309,72 @@ class Camera(object):
             
             forward = round((Step - self.__StepCopy) / self.__K_Coef__)
 
-            fresh = self._stitch_unit(_image_, _image_.shape[0] - forward, Direction, round(MotionStartPoint / self.__K_Coef__))
+            if self.__refiner is None:
+                fresh = self._stitch_unit(_image_, _image_.shape[0] - forward, Direction, round(MotionStartPoint / self.__K_Coef__))
+            else:
+                fresh = self._stitch_refined(_image_, forward, Direction, round(MotionStartPoint / self.__K_Coef__))
 
             self.__StepCopy = Step
 
             return fresh.copy(), forward
+
+        def stitch_frame(self, image:np.ndarray, Step:float, Direction:bool, MotionStartPoint:float) -> list:
+            """单帧实时拼接的统一入口：返回本帧释放出的 [(band, y_step), ...]。
+
+            stream_realtime=True 时走流式引擎（StreamRealtime）：带口径与旧
+            引擎一致（旧相位/旧 y_step），缝质量为 C 级；MSP=0 的首帧会积压
+            几帧后一起释放。False 时为旧行为（恒 1 带）。
+            """
+            if self.__stream_realtime:
+                if self.__stream_rt is None:
+                    from drivers.camera.StreamRealtime import StreamRealtime
+                    args = {k: v for k, v in self.__stream_rt_args.items() if v is not None}
+                    self.__stream_rt = StreamRealtime(
+                        self.__YamlPath, self.__YamlPathFalse,
+                        canvas_start=self.__x_s_cut_, canvas_width=(self.__x_e_cut_ - self.__x_s_cut_),
+                        hold_pix=self.__upOffset,
+                        x_base_L=self.__x_base_L_raw, x_base_R=self.__x_base_R_raw,
+                        x_invert=self.__x_invert, DPI=300,
+                        log_cb=self.__log_cb, **args)
+                return self.__stream_rt.feed_frame(image, Step, Direction, MotionStartPoint)
+            fresh, forward = self.stitch_from_ram(_image=image, Step=Step, Direction=Direction, MotionStartPoint=MotionStartPoint)
+            return [(fresh, forward)]
+
+        def _stitch_refined(self, rectified:np.ndarray, forward:int, direction:bool, start_pos:int) -> ndarray:
+            """One closed-loop iteration: predict, measure, correct, paste.
+
+            The strip is cut twice. The first cut is thrown away except for its
+            probe band - it only exists to measure where the strip would land.
+            Cutting is a slice on an already-padded array, so the second cut is
+            cheap; the only real added cost is the phase correlation and the
+            single `cv2.remap`.
+            """
+            overlap = rectified.shape[0] - forward
+
+            extra_pred = self.__refiner.predict(forward, direction)
+            # throwaway cut: only the probe band is used, so do not let it
+            # contribute the first-strip add-on (it would be appended twice)
+            _, probe = self._stitch_unit(rectified, overlap, direction, start_pos,
+                                         extra_col_shift=extra_pred, want_probe=True,
+                                         collect_addon=False)
+            dx = self.__refiner.measure(probe)
+            extra_final, knots = self.__refiner.resolve(extra_pred, dx)
+
+            fresh = self._stitch_unit(rectified, overlap, direction, start_pos,
+                                      extra_col_shift=extra_final,
+                                      warp_knots=knots)
+            self.__refiner.commit(fresh)
+
+            if self.__log_cb:
+                d = self.__refiner.last
+                self.__log_cb("Camera: seam dx={} src={} applied={:+.3f} shift={:+d} "
+                              "s={:.3e} A={:+.3f} [{}]{}".format(
+                                  "None" if dx is None else "{:+.3f}".format(dx),
+                                  d["dx_source"], d["applied_px"], d["extra_final_px"],
+                                  d["skew_s_used"], d["antisym_used"], d["fit_source"],
+                                  "" if not d["reject_reason"] else " " + d["reject_reason"]))
+
+            return fresh
 
         def stitch_from_json(self, file_path:str, file_name:str= "LocalImageInfos.json", export_calib_img:bool=None) -> np.ndarray:
             """ Stitching images from JSON file
@@ -1107,7 +1388,7 @@ class Camera(object):
             # Determine if we need to export calibrated images
             do_export = export_calib_img if export_calib_img is not None else self.__export_calib_img
             
-            self.__StepCopy = 0
+            self.step_Reset()
 
             with open(os.path.join(file_path, file_name), 'r', encoding='utf-8') as f:
                 file = json.load(f)
@@ -1146,10 +1427,7 @@ class Camera(object):
                     # Apply calibration if needed
                     if do_export:
                         # Perform calibration
-                        if _Info.Direction:
-                            _image_calib = self.calibration(_image_, self.__params)
-                        else:
-                            _image_calib = self.calibration(_image_[::-1, ...], self.__params)
+                        _image_calib = self.rectify(_image_, _Info.Direction)
                         
                         # Save calibrated image to Image_Calib directory with same name
                         calib_image_path = os.path.join(calib_dir, os.path.basename(_Info.ImagePath))
@@ -1170,7 +1448,16 @@ class Camera(object):
         def set_R_base(self, base): self.__x_base_R = int(base / self.__K_Coef__)
         def set_Invert(self, invt): self.__x_invert = invt
         def set_YmPath(self, path): self.__YamlPath = path
-        def step_Reset(self)      : self.__StepCopy = 0
+        def set_YmPathFalse(self, path): self.__YamlPathFalse = path
+        def step_Reset(self)      :
+            self.__StepCopy = 0
+            # `prev_fresh` from the previous roll is not the same fabric, and the
+            # accumulated fraction belongs to the previous chain
+            if self.__refiner is not None:
+                self.__refiner.reset()
+            # 流式引擎：新的一卷，全部状态重置
+            if self.__stream_rt is not None:
+                self.__stream_rt.reset()
         def get_addons(self      ): return self.__add_ons_.pop(0)
 
     class VisionModbus(object):
@@ -1240,7 +1527,7 @@ class Camera(object):
             :note:: 0x8000 pause, restart needs manual continue. If not restored to 0, shows 'peripheral panel forbidden printing', 0x0000 allows printing, but doesn't have continue printing function
             """
             if self.__client__.connect():
-                result = self.__client__.write_registers(192, values=[0x8000] if pause else [0], slave=0)
+                result = self.__client__.write_registers(192, values=[0x8000] if pause else [0], **_MODBUS_ID)
 
                 return not result.isError()
             return False
@@ -1254,7 +1541,7 @@ class Camera(object):
             :note:: Use 'List' function or attribute to get certain data, after the function called
             """
             if self.__client__.connect():
-                result = self.__client__.read_holding_registers(180, count=4, slave=0)  # 180&181 For X axis pos, 182&183 For Y axis pos
+                result = self.__client__.read_holding_registers(180, count=4, **_MODBUS_ID)  # 180&181 For X axis pos, 182&183 For Y axis pos
 
                 if not result.isError():
                     data = self.__client__.convert_from_registers(result.registers, self.__client__.DATATYPE.FLOAT32, "little")
@@ -1264,7 +1551,7 @@ class Camera(object):
                 else:
                     return False
 
-                result = self.__client__.read_holding_registers(190, count=1, slave=0)  # 190 For Machine status
+                result = self.__client__.read_holding_registers(190, count=1, **_MODBUS_ID)  # 190 For Machine status
 
                 if not result.isError():
                     bits = [(result.registers[0] >> i) & 1 for i in range(16)]

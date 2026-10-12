@@ -234,7 +234,7 @@ class Printer(object):
             try:
                 # 1. Scan directory for new files
                 files = os.listdir(self.listen_dir)
-                prn_files = [f for f in files if f.lower().endswith('.prn')]
+                prn_files = [f for f in files if f.lower().endswith(('.prn', '.prt'))]
                 
                 found_higher_index = False
                 

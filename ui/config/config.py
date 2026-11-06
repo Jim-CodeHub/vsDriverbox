@@ -175,7 +175,20 @@ class ConfigUI(object):
         print_frame = ttk.LabelFrame(col0, text=translator.t('config_ui.print_settings'), padding="5")
         print_frame.grid(row=0, column=0, sticky=tk.NSEW, pady=2)
         
-        self._add_dropdown(print_frame, translator.t('config_ui.listen_mode') + ":", [translator.t('options.tcp_ip'), translator.t('config_ui.hot_folder')], 0, key="listen_mode", callback=self._on_listen_mode_change)
+        self.listen_mode_labels = {
+            "tcp_old": translator.t('config_ui.listen_tcp_old'),
+            "tcp_new": translator.t('config_ui.listen_tcp_new'),
+            "hot_old": translator.t('config_ui.listen_hot_old'),
+            "hot_new": translator.t('config_ui.listen_hot_new'),
+        }
+        self._add_dropdown(
+            print_frame,
+            translator.t('config_ui.listen_mode') + ":",
+            list(self.listen_mode_labels.values()),
+            0,
+            key="listen_mode",
+            callback=self._on_listen_mode_change
+        )
         self._add_entry(print_frame, translator.t('config_ui.listen_addr') + ":", "127.0.0.1", 1, key="data_listen_addr")
         self._add_entry(print_frame, translator.t('config_ui.listen_port') + ":", "9111", 2, key="data_listen_port", vcmd=self.v_int)
         self._add_browse_entry(print_frame, translator.t('config_ui.listen_dir') + ":", 3, show_status=False, key="data_listen_dir")
@@ -373,8 +386,8 @@ class ConfigUI(object):
 
     def _on_listen_mode_change(self, event):
         """Handle listen mode change to enable/disable address/port or directory entries"""
-        mode = self.entries["listen_mode"].get()
-        if mode == "热文件夹":
+        mode = self._listen_mode_value(self.entries["listen_mode"].get())
+        if mode.startswith("hot_"):
             self.entries["data_listen_addr"].config(state="disabled")
             self.entries["data_listen_port"].config(state="disabled")
             self.entries["data_listen_dir"].config(state="normal")
@@ -384,6 +397,23 @@ class ConfigUI(object):
             self.entries["data_listen_port"].config(state="normal")
             self.entries["data_listen_dir"].config(state="disabled")
             self.entries["hot_poll_interval"].config(state="disabled")
+
+    def _listen_mode_value(self, value):
+        """Convert current and legacy listen-mode values to stable config IDs."""
+        labels_to_values = {label: key for key, label in self.listen_mode_labels.items()}
+        legacy_values = {
+            "TCP/IP": "tcp_old",
+            "热文件夹": "hot_old",
+            "Hot Folder": "hot_old",
+            "Thư mục nóng": "hot_old",
+        }
+        if value in labels_to_values:
+            return labels_to_values[value]
+        if value in legacy_values:
+            return legacy_values[value]
+        if value in self.listen_mode_labels:
+            return value
+        raise ValueError(f"Unsupported listen mode: {value}")
 
     def _on_cal_sel_change(self, event):
         """Handle calibration selection change to warn user"""
@@ -550,7 +580,9 @@ class ConfigUI(object):
         """
         config_data = {}
         for key, entry in self.entries.items():
-            if isinstance(entry, tk.BooleanVar):
+            if key == "listen_mode":
+                config_data[key] = self._listen_mode_value(entry.get())
+            elif isinstance(entry, tk.BooleanVar):
                 config_data[key] = entry.get()
             else:
                 config_data[key] = entry.get()
@@ -573,7 +605,10 @@ class ConfigUI(object):
             return
 
         try:
-            config_data = {key: entry.get() for key, entry in self.entries.items()}
+            config_data = {
+                key: self._listen_mode_value(entry.get()) if key == "listen_mode" else entry.get()
+                for key, entry in self.entries.items()
+            }
             export_obj = {
                 "header": self.CFG_MAGIC,
                 "data": config_data
@@ -610,10 +645,13 @@ class ConfigUI(object):
                         self.entries[key].set(value)
                     else:
                         self.entries[key].delete(0, tk.END)
+                        if key == "listen_mode":
+                            value = self.listen_mode_labels[self._listen_mode_value(str(value))]
                         self.entries[key].insert(0, str(value))
             
             messagebox.showinfo(translator.t('config_ui.save_success'), translator.t('config_ui.import_success'))
             self._update_canvas_end_pos()
+            self._on_listen_mode_change(None)
         except Exception as e:
             messagebox.showerror(translator.t('config_ui.import_failed'), f"{translator.t('config_ui.import_failed')}：\n{str(e)}")
 
@@ -628,6 +666,8 @@ class ConfigUI(object):
         for key, value in config_context.config.items():
             if key in self.entries:
                 if isinstance(self.entries[key], ttk.Combobox):
+                    if key == "listen_mode":
+                        value = self.listen_mode_labels[self._listen_mode_value(str(value))]
                     self.entries[key].set(value)
                     # Trigger callback manually for dropdowns to update state
                     if key == "forward_mode":

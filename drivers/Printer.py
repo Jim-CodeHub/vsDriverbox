@@ -28,7 +28,7 @@ class Printer(object):
                  fatal_error_cb=None):
         """Printer Driver Initialization
 
-        :param listen_mode: Data listening mode (TCP/IP or Hot Folder)
+        :param listen_mode: Listen mode and header format selection
         :param listen_ip: IP to listen for incoming PRN data
         :param listen_port: Port to listen for incoming PRN data
         :param listen_dir: Directory to watch for hot folder mode
@@ -49,7 +49,24 @@ class Printer(object):
         self.fatal_error_cb = fatal_error_cb
         
         # Configuration
-        self.listen_mode = listen_mode
+        listen_modes = {
+            "tcp_old": ("TCP/IP", "old"),
+            "tcp_new": ("TCP/IP", "new"),
+            "hot_old": ("热文件夹", "old"),
+            "hot_new": ("热文件夹", "new"),
+            "TCP/IP": ("TCP/IP", "old"),
+            "TCP/IP-旧头部": ("TCP/IP", "old"),
+            "TCP/IP-新头部": ("TCP/IP", "new"),
+            "热文件夹": ("热文件夹", "old"),
+            "热文件夹-旧头部": ("热文件夹", "old"),
+            "热文件夹-新头部": ("热文件夹", "new"),
+            "Hot Folder": ("热文件夹", "old"),
+            "Thư mục nóng": ("热文件夹", "old"),
+        }
+        try:
+            self.listen_mode, self.header_format = listen_modes[listen_mode]
+        except KeyError:
+            raise ValueError(f"Unsupported listen mode: {listen_mode}")
         self.listen_ip = listen_ip
         self.listen_port = int(listen_port)
         self.listen_dir = listen_dir
@@ -71,6 +88,12 @@ class Printer(object):
         self.forward_queue = queue.Queue(maxsize=512)
         self.index = 0
         self.HEADER_BYTE_SIZE = 48
+        self.PRT_HEADER_BYTE_SIZE = 280
+        self.header_size = (
+            self.PRT_HEADER_BYTE_SIZE
+            if self.header_format == "new"
+            else self.HEADER_BYTE_SIZE
+        )
         
         # Hot Folder state
         self.next_expected_index = 0
@@ -131,6 +154,24 @@ class Printer(object):
         total_size = header_size + data_size
         return total_size
 
+    def get_prt_file_size(self, data: bytes) -> int:
+        """Parse a new-format RIP header and calculate its complete file size."""
+        if len(data) < self.PRT_HEADER_BYTE_SIZE:
+            raise ValueError(
+                f"PRT header is incomplete ({len(data)}/{self.PRT_HEADER_BYTE_SIZE} bytes)"
+            )
+
+        x_resolution, y_resolution, width, height, gray_bits, colors = struct.unpack_from(
+            '<6I', data
+        )
+        if not x_resolution or not y_resolution or not width or not height or not colors:
+            raise ValueError("PRT header contains zero dimensions, resolution, or color count")
+        if gray_bits not in (1, 2):
+            raise ValueError(f"Unsupported PRT gray level bit depth: {gray_bits}")
+
+        bytes_per_line = (width * gray_bits + 7) // 8
+        return self.PRT_HEADER_BYTE_SIZE + height * colors * bytes_per_line
+
     def _set_header(self, data: bytes, length: int) -> bytearray:
         """Modify PRN header's printing height based on set length
 
@@ -146,6 +187,32 @@ class Printer(object):
             new_height = int(length / (25.4 / y_dpi))
             header[16:20] = struct.pack('<I', new_height)
         return header
+
+    def _set_prt_header(self, data: bytes, length: int) -> bytearray:
+        """Modify the new-format RIP header height using its Y resolution."""
+        header = bytearray(data[:self.PRT_HEADER_BYTE_SIZE])
+        if len(header) < self.PRT_HEADER_BYTE_SIZE:
+            raise ValueError(
+                f"PRT header is incomplete ({len(header)}/{self.PRT_HEADER_BYTE_SIZE} bytes)"
+            )
+
+        y_resolution = struct.unpack_from('<I', header, 4)[0]
+        if not y_resolution:
+            raise ValueError("PRT header contains zero Y resolution")
+
+        new_height = int(length / (25.4 / y_resolution))
+        struct.pack_into('<I', header, 12, new_height)
+        return header
+
+    def _get_file_size(self, header: bytes) -> int:
+        if self.header_format == "new":
+            return self.get_prt_file_size(header)
+        return self.get_prn_file_size(header)
+
+    def _set_file_header(self, header: bytes, length: int) -> bytearray:
+        if self.header_format == "new":
+            return self._set_prt_header(header, length)
+        return self._set_header(header, length)
 
     def start(self):
         """Start driver: Connect to target server and start local listening service.
@@ -296,13 +363,13 @@ class Printer(object):
                 time.sleep(1.0)
 
     def process_hot_file(self, file_path):
-        """Stream a single PRN file to the forward queue"""
+        """Stream a single print file to the forward queue"""
         try:
             with open(file_path, 'rb') as f:
                 # 1. Read and parse header
                 header = b''
-                while len(header) < self.HEADER_BYTE_SIZE and self.running:
-                    chunk = f.read(self.HEADER_BYTE_SIZE - len(header))
+                while len(header) < self.header_size and self.running:
+                    chunk = f.read(self.header_size - len(header))
                     if not chunk:
                         time.sleep(0.01)
                         continue
@@ -311,9 +378,10 @@ class Printer(object):
                 if not self.running: return False
                 
                 try:
-                    expected_size = self.get_prn_file_size(header)
+                    expected_size = self._get_file_size(header)
                 except Exception as e:
-                    self._log_error(f"Failed to parse PRN header for {file_path}: {str(e)}")
+                    header_name = "new-format PRN/PRT" if self.header_format == "new" else "PRN"
+                    self._log_error(f"Failed to parse {header_name} header for {file_path}: {str(e)}")
                     return False
 
                 self._log(f"Streaming file {os.path.basename(file_path)}, expected size: {expected_size}")
@@ -321,10 +389,10 @@ class Printer(object):
                 # 2. Modify and send header
                 self.index += 1
                 if self.index == 1:
-                    self.forward_queue.put(self._set_header(header, self.print_length))
+                    self.forward_queue.put(self._set_file_header(header, self.print_length))
                 
                 # 3. Stream body
-                curr_pos = self.HEADER_BYTE_SIZE
+                curr_pos = self.header_size
                 local_buffer = bytearray()
                 
                 while curr_pos < expected_size and self.running:
@@ -373,15 +441,18 @@ class Printer(object):
                     while self.running:
                         try:
                             header = b''
-                            while len(header) < self.HEADER_BYTE_SIZE:
-                                packet = client_socket.recv(self.HEADER_BYTE_SIZE - len(header))
+                            while len(header) < self.header_size:
+                                packet = client_socket.recv(self.header_size - len(header))
                                 if not packet:
                                     break
                                 header += packet
 
-                            if len(header) < self.HEADER_BYTE_SIZE:
+                            if len(header) < self.header_size:
                                 if len(header) > 0:
-                                    self.stop(f"Connection lost, header incomplete ({len(header)}/48)")
+                                    self.stop(
+                                        f"Connection lost, header incomplete "
+                                        f"({len(header)}/{self.header_size})"
+                                    )
                                 break
                         except Exception as e:
                             if self.running:
@@ -391,15 +462,16 @@ class Printer(object):
                         self.index += 1
 
                         try:
-                            expected_size = self.get_prn_file_size(header)
+                            expected_size = self._get_file_size(header)
                         except Exception as e:
-                            self.stop(f"Failed to parse PRN header: {str(e)}")
+                            header_name = "new-format PRN/PRT" if self.header_format == "new" else "PRN"
+                            self.stop(f"Failed to parse {header_name} header: {str(e)}")
                             break
 
-                        remaining_size = expected_size - self.HEADER_BYTE_SIZE
+                        remaining_size = expected_size - self.header_size
 
                         if self.index == 1:
-                            self.forward_queue.put(self._set_header(header, self.print_length))
+                            self.forward_queue.put(self._set_file_header(header, self.print_length))
 
                         local_buffer = bytearray()
                         while remaining_size > 0 and self.running:

@@ -82,7 +82,7 @@ def stop_qt_viewer_process():
         logger.info("Real-time Qt Viewer process is not running.")
 
 # Global constants
-APP_VERSION = "1.1.1_Beta_07"
+APP_VERSION = "1.1.1_Beta_08"
 
 # Global states
 is_started = False
@@ -267,7 +267,7 @@ def start_system(is_capture=False):
         # 3. Instantiate Printer
         printer_instance = ProcessProxy(
             Printer,
-            listen_mode=config.get('listen_mode', "TCP/IP"),
+            listen_mode=config.get('listen_mode', "tcp_old"),
             listen_ip=config.get('data_listen_addr', "127.0.0.1"),
             listen_port=config.get('data_listen_port', 9111),
             listen_dir=config.get('data_listen_dir', ""),
